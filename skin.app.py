@@ -1,6 +1,6 @@
 import streamlit as st
 
-import streamlit as st
+
 
 # 1. 페이지 기본 설정 (모바일 친화적 레이아웃)
 st.set_page_config(
