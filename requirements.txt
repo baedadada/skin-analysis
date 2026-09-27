@@ -1,1 +1,5 @@
 streamlit
+pillow
+easyocr
+torch
+torchvision
