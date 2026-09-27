@@ -71,7 +71,7 @@ INGREDIENT_INFO = {
     "약모밀추출물(어성초)": {"category": "진정", "info": "피부 상태에 따라 드물게 가려움 유발 가능"}
 }
 
-# 3. 제품 데이터셋 (50종 확장 + 영문/한글 검색 키워드 포함)
+# 3. 제품 데이터셋 (50종 + 영문/한글 키워드 포함)
 products = [
     {"id": 1, "name": "라로슈포제 시카플라스트 밤 B5+", "category": "크림", "keywords": ["larocheposay", "laroche", "cicaplast", "baume", "b5", "라로슈포제", "시카플라스트"], "ingredients": ["정제수", "글리세린", "판테놀", "마데카소사이드", "징크글루코네이트", "시어버터", "부틸렌글라이콜"]},
     {"id": 2, "name": "에스트라 아토베리어365 크림", "category": "크림", "keywords": ["aestura", "atobarrier", "365", "cream", "에스트라", "아토베리어"], "ingredients": ["정제수", "글리세린", "부틸렌글라이콜", "세라마이드엔피", "스쿠알란", "콜레스테롤", "스테아릭애씨드"]},
@@ -165,39 +165,64 @@ def match_product_from_image(img_file):
 
 # 4. 웹 UI 구현
 st.title("🧴 개인 맞춤 화장품 성분 분석기")
-st.caption("영문/한글 OCR 스마트 사진 인식 및 성분 위험도 정밀 비교")
+st.caption("여러 제품 다중 사진 인식(OCR) 및 성분 위험도 정밀 비교")
 
 st.divider()
 
 st.subheader("📸 1. 화장품 이미지 등록")
-st.caption("제품명(브랜드명)이 잘 보이도록 촬영하거나 올리면 자동으로 제품을 찾아줍니다.")
+st.caption("사진을 여러 장 선택하거나 촬영할 수 있습니다. 업로드된 모든 사진을 자동으로 스캔합니다.")
 
-tab1, tab2 = st.tabs(["📷 실시간 카메라 촬영", "🖼️ 갤러리/파일 업로드"])
+tab1, tab2 = st.tabs(["🖼️ 갤러리/파일 다중 업로드", "📷 카메라 촬영"])
 
-auto_selected_product = None
-ocr_debug_text = ""
+auto_detected_products = [] # 자동 감지된 제품들 저장 리스트
+debug_info_list = []        # OCR 디버깅 정보 저장
 
 with tab1:
+    uploaded_files = st.file_uploader(
+        "스마트폰 갤러리에서 사진 여러 장 선택 (다중 선택 가능)", 
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True # 🌟 여러 장 다중 선택 허용
+    )
+    if uploaded_files:
+        st.write(f"📷 **총 {len(uploaded_files)}장의 사진이 업로드되었습니다.**")
+        
+        # 이미지 미리보기 (컬럼 배치)
+        cols = st.columns(min(len(uploaded_files), 4))
+        for idx, file in enumerate(uploaded_files):
+            with cols[idx % 4]:
+                st.image(file, caption=f"사진 {idx+1}", use_container_width=True)
+
+        # 다중 사진 OCR 스캔 처리
+        with st.spinner("🔍 업로드된 사진들의 브랜드/제품명을 분석하는 중..."):
+            for idx, file in enumerate(uploaded_files):
+                matched, raw_text = match_product_from_image(file)
+                if matched and matched not in auto_detected_products:
+                    auto_detected_products.append(matched)
+                debug_info_list.append((f"사진 {idx+1}", matched, raw_text))
+
+with tab2:
     captured_image = st.camera_input("화장품 정면 촬영")
     if captured_image is not None:
         st.image(captured_image, width=220)
-        with st.spinner("🔍 사진 속 영문/한글 제품명을 읽는 중..."):
-            auto_selected_product, ocr_debug_text = match_product_from_image(captured_image)
+        with st.spinner("🔍 촬영된 사진의 브랜드/제품명을 분석하는 중..."):
+            matched, raw_text = match_product_from_image(captured_image)
+            if matched and matched not in auto_detected_products:
+                auto_detected_products.append(matched)
+            debug_info_list.append(("촬영된 사진", matched, raw_text))
 
-with tab2:
-    uploaded_file = st.file_uploader("스마트폰 갤러리에서 사진 선택", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        st.image(uploaded_file, width=220)
-        with st.spinner("🔍 사진 속 영문/한글 제품명을 읽는 중..."):
-            auto_selected_product, ocr_debug_text = match_product_from_image(uploaded_file)
+# OCR 감지 결과 표시
+if auto_detected_products:
+    st.success(f"🎉 **총 {len(auto_detected_products)}개 제품 자동 인식 성공!**")
+    for prod in auto_detected_products:
+        st.markdown(f"- ✅ **{prod}**")
+elif debug_info_list:
+    st.info("💡 **사진에서 목록 내 제품을 자동으로 찾아내지 못했습니다.** 아래에서 직접 선택해 주세요.")
 
-# OCR 결과 안내
-if auto_selected_product:
-    st.success(f"🎉 **제품 자동 인식 성공!** -> **{auto_selected_product}**")
-elif (captured_image or uploaded_file) and not auto_selected_product:
-    st.info("💡 **사진에서 제품명을 완벽히 매칭하지 못했습니다.** 아래 목록에서 직접 선택해 주세요.")
-    with st.expander("🔍 사진에서 읽어낸 텍스트 확인 (디버깅)"):
-        st.write(ocr_debug_text if ocr_debug_text else "인식된 글자가 없습니다.")
+if debug_info_list:
+    with st.expander("🔍 사진별 인식 텍스트 디버깅 정보"):
+        for label, matched, raw_text in debug_info_list:
+            st.write(f"**[{label}]** 매칭 결과: `{matched if matched else '매칭 실패'}`")
+            st.caption(f"인식된 텍스트: {raw_text if raw_text else '텍스트 없음'}")
 
 st.divider()
 
@@ -206,11 +231,11 @@ st.subheader("⚠️ 2. 과거 부작용 경험 및 구매 예정 제품 선택"
 
 product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
 
-# 이미지 인식 결과 자동 선택
-default_selected = [auto_selected_product] if auto_selected_product in product_dict else []
+# 이미지 다중 인식 결과들을 다중 선택 상자의 기본값(default)으로 자동 세팅
+default_selected = [p for p in auto_detected_products if p in product_dict]
 
 selected_problem_names = st.multiselect(
-    "과거 부작용/트러블이 있었던 제품 (1개 이상 선택):",
+    "과거 부작용/트러블이 있었던 제품 (자동 선택됨 / 직접 추가 가능):",
     options=list(product_dict.keys()),
     default=default_selected
 )
@@ -245,6 +270,7 @@ if st.button("🔍 성분 위험도 및 부작용 분석 실행", type="primary"
         if len(problem_ids) == 1:
             caution_ingredients = set(all_problem_ings)
         else:
+            # 2개 이상 선택된 경우 2개 이상 중복 등장하는 교집합 성분을 주요 원인으로 도출
             for ing in set(all_problem_ings):
                 if all_problem_ings.count(ing) >= 2:
                     caution_ingredients.add(ing)
@@ -258,11 +284,12 @@ if st.button("🔍 성분 위험도 및 부작용 분석 실행", type="primary"
         st.divider()
         st.subheader("📊 맞춤 성분 분석 리포트")
         
+        st.write(f"**분석 대상 문제 제품 ({len(selected_problem_names)}개):** {', '.join(selected_problem_names)}")
         if selected_symptoms:
             st.write(f"**등록된 사용자 증상:** `{', '.join(selected_symptoms)}`")
 
         if matched:
-            st.warning(f"⚠️ **[주의] 과거 문제 제품의 위험/특이 성분 {len(matched)}개가 새 제품에 포함되어 있습니다!**")
+            st.warning(f"⚠️ **[주의] 과거 문제 제품들의 위험/특이 성분 {len(matched)}개가 새 제품에 포함되어 있습니다!**")
             for ing in matched:
                 info = INGREDIENT_INFO.get(ing, {"category": "주의 성분", "info": "과거 부작용 유발 제품에 포함된 성분"})
                 st.markdown(f"- **{ing}** (`{info['category']}`) : {info['info']}")
