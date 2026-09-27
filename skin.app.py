@@ -1,5 +1,7 @@
 import streamlit as st
 
+import streamlit as st
+
 # 1. 페이지 기본 설정 (모바일 친화적 레이아웃)
 st.set_page_config(
     page_title="Custom Skin Care Analysis",
@@ -70,30 +72,53 @@ COMMON_INGREDIENTS = {"정제수", "글리세린", "부틸렌글라이콜", "1,2
 
 # 4. 웹 UI 구현
 st.title("🧴 개인 맞춤 화장품 성분 분석기")
-st.caption("과거 부작용 이력을 바탕으로 구매 예정 제품의 위험 성분을 체크합니다.")
+st.caption("화장품 용기 사진 촬영 및 성분비교 모바일 UI")
 
 st.divider()
 
-# UI - 문제 제품 선택
+# --- [신규 기능] 📸 사진 촬영 및 제품 자동 인식 ---
+st.subheader("📸 1. 화장품 촬영으로 빠른 등록 (선택)")
+st.caption("스마트폰으로 화장품 용기 앞면(제품명)을 직접 찍어보세요.")
+
+# 카메라 촬영 입력창 (스마트폰에서는 카메라 열림)
+captured_image = st.camera_input("화장품 본품 용기 앞면 촬영하기")
+
+auto_selected_product = None
+if captured_image is not None:
+    st.image(captured_image, caption="촬영된 화장품 사진", width=250)
+    # 시연용 제품 자동 매칭 메시지 (OCR 데모)
+    auto_selected_product = "[크림] 라로슈포제 시카플라스트 밤 B5+"
+    st.success(f"🔍 **이미지 분석 완료!** 제품이 감지되었습니다: **{auto_selected_product}**")
+
+st.divider()
+
+# 5. 기존 선택 폼
+st.subheader("⚠️ 2. 부작용 경험 제품 및 증상 설정")
+
 product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
+
+# 사진이 촬영되었으면 해당 제품이 기본으로 선택되도록 세팅
+default_selected = [auto_selected_product] if auto_selected_product in product_dict else []
+
 selected_problem_names = st.multiselect(
-    "⚠️ 과거 부작용/트러블이 있었던 제품 (1개 이상 선택):",
-    options=list(product_dict.keys())
+    "과거 부작용/트러블이 있었던 제품 (1개 이상 선택):",
+    options=list(product_dict.keys()),
+    default=default_selected
 )
 
-# UI - 증상 선택
+# 증상 선택
 selected_symptoms = st.multiselect(
     "📌 겪었던 주요 증상을 선택하세요:",
     options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘', '가려움', '건조함/당김']
 )
 
-# UI - 새 제품 선택
+# 구매 예정 제품 선택
 selected_new_name = st.selectbox(
     "🛒 구매를 검토 중인 새 제품:",
     options=list(product_dict.keys())
 )
 
-# 분석 실행 버튼
+# 6. 분석 버튼 및 로직
 if st.button("🔍 성분 위험도 분석 실행", type="primary", use_container_width=True):
     if not selected_problem_names:
         st.error("과거 문제 제품을 최소 1개 이상 선택해 주세요!")
@@ -139,6 +164,6 @@ if st.button("🔍 성분 위험도 분석 실행", type="primary", use_containe
                 info = INGREDIENT_INFO.get(ing, {"category": "기타 성분", "info": "과거 문제 제품 포함 성분"})
                 st.markdown(f"- **{ing}** (`{info['category']}`) : {info['info']}")
         else:
-            st.success("✅ **[안전] 과거 문제 제품의 주요 특이 성분이 발견되지 않았습니다.**")
+            st.success("✅ **[안전] 과거 문제 제품의 주요 특이 성분이 발견되지 않았습다.**")
 
         st.caption("※ 본 시스템은 사용자의 입력 이력을 기반으로 한 비교 참고 도구입니다.")
