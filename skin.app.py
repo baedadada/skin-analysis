@@ -1,7 +1,5 @@
 import streamlit as st
 
-
-
 # 1. 페이지 기본 설정 (모바일 친화적 레이아웃)
 st.set_page_config(
     page_title="Custom Skin Care Analysis",
@@ -72,32 +70,42 @@ COMMON_INGREDIENTS = {"정제수", "글리세린", "부틸렌글라이콜", "1,2
 
 # 4. 웹 UI 구현
 st.title("🧴 개인 맞춤 화장품 성분 분석기")
-st.caption("화장품 용기 사진 촬영 및 성분비교 모바일 UI")
+st.caption("화장품 이미지 등록(촬영/갤러리) 및 개인화 성분 비교 서비스")
 
 st.divider()
 
-# --- [신규 기능] 📸 사진 촬영 및 제품 자동 인식 ---
-st.subheader("📸 1. 화장품 촬영으로 빠른 등록 (선택)")
-st.caption("스마트폰으로 화장품 용기 앞면(제품명)을 직접 찍어보세요.")
+# --- 📸 탭(Tab) 메뉴로 촬영/업로드 옵션 분리 ---
+st.subheader("📸 1. 화장품 이미지 등록 (선택)")
+st.caption("현장에서 카메라로 직접 찍거나, 갤러리의 사진을 선택해 보세요.")
 
-# 카메라 촬영 입력창 (스마트폰에서는 카메라 열림)
-captured_image = st.camera_input("화장품 본품 용기 앞면 촬영하기")
+tab1, tab2 = st.tabs(["📷 실시간 카메라 촬영", "🖼️ 갤러리/파일 업로드"])
 
 auto_selected_product = None
-if captured_image is not None:
-    st.image(captured_image, caption="촬영된 화장품 사진", width=250)
-    # 시연용 제품 자동 매칭 메시지 (OCR 데모)
-    auto_selected_product = "[크림] 라로슈포제 시카플라스트 밤 B5+"
-    st.success(f"🔍 **이미지 분석 완료!** 제품이 감지되었습니다: **{auto_selected_product}**")
+
+# [옵션 A] 실시간 촬영 탭
+with tab1:
+    captured_image = st.camera_input("화장품 용기 앞면 찍기")
+    if captured_image is not None:
+        st.image(captured_image, caption="촬영된 이미지", width=220)
+        auto_selected_product = "[크림] 라로슈포제 시카플라스트 밤 B5+"
+        st.success(f"🔍 **촬영 이미지 분석 완료!** 제품 인식: **{auto_selected_product}**")
+
+# [옵션 B] 파일 업로드 탭
+with tab2:
+    uploaded_file = st.file_uploader("스마트폰 갤러리에서 사진 선택", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        st.image(uploaded_file, caption="업로드된 이미지", width=220)
+        auto_selected_product = "[크림] 라로슈포제 시카플라스트 밤 B5+"
+        st.success(f"🔍 **갤러리 이미지 분석 완료!** 제품 인식: **{auto_selected_product}**")
 
 st.divider()
 
-# 5. 기존 선택 폼
+# 5. 제품 및 증상 설정 폼
 st.subheader("⚠️ 2. 부작용 경험 제품 및 증상 설정")
 
 product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
 
-# 사진이 촬영되었으면 해당 제품이 기본으로 선택되도록 세팅
+# 이미지 등록 시 자동 선택 반영
 default_selected = [auto_selected_product] if auto_selected_product in product_dict else []
 
 selected_problem_names = st.multiselect(
@@ -106,19 +114,17 @@ selected_problem_names = st.multiselect(
     default=default_selected
 )
 
-# 증상 선택
 selected_symptoms = st.multiselect(
     "📌 겪었던 주요 증상을 선택하세요:",
     options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘', '가려움', '건조함/당김']
 )
 
-# 구매 예정 제품 선택
 selected_new_name = st.selectbox(
     "🛒 구매를 검토 중인 새 제품:",
     options=list(product_dict.keys())
 )
 
-# 6. 분석 버튼 및 로직
+# 6. 분석 로직
 if st.button("🔍 성분 위험도 분석 실행", type="primary", use_container_width=True):
     if not selected_problem_names:
         st.error("과거 문제 제품을 최소 1개 이상 선택해 주세요!")
@@ -126,14 +132,12 @@ if st.button("🔍 성분 위험도 분석 실행", type="primary", use_containe
         problem_ids = [product_dict[name] for name in selected_problem_names]
         new_id = product_dict[selected_new_name]
 
-        # 1) 문제 제품 특이 성분 모으기
         problem_ingredients_list = []
         for p in products:
             if p['id'] in problem_ids:
                 unique_ings = set(p['ingredients']) - COMMON_INGREDIENTS
                 problem_ingredients_list.append(unique_ings)
 
-        # 2) 선택 개수별 주의 성분 판별
         caution_ingredients = set()
         all_problem_ings = [ing for sublist in problem_ingredients_list for ing in sublist]
 
@@ -146,12 +150,10 @@ if st.button("🔍 성분 위험도 분석 실행", type="primary", use_containe
             if not caution_ingredients:
                 caution_ingredients = set(all_problem_ings)
 
-        # 3) 새 제품 교집합 분석
         new_product = next((p for p in products if p['id'] == new_id), None)
         new_product_ings = set(new_product['ingredients'])
         matched = new_product_ings.intersection(caution_ingredients)
 
-        # 4) 결과 표시
         st.divider()
         st.subheader("📊 분석 결과 리포트")
         
@@ -164,6 +166,6 @@ if st.button("🔍 성분 위험도 분석 실행", type="primary", use_containe
                 info = INGREDIENT_INFO.get(ing, {"category": "기타 성분", "info": "과거 문제 제품 포함 성분"})
                 st.markdown(f"- **{ing}** (`{info['category']}`) : {info['info']}")
         else:
-            st.success("✅ **[안전] 과거 문제 제품의 주요 특이 성분이 발견되지 않았습다.**")
+            st.success("✅ **[안전] 과거 문제 제품의 주요 특이 성분이 발견되지 않았습니다.**")
 
         st.caption("※ 본 시스템은 사용자의 입력 이력을 기반으로 한 비교 참고 도구입니다.")
