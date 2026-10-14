@@ -182,7 +182,7 @@ if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날�
                     model = genai.GenerativeModel('gemini-3.8-flash')
                     
                     last_data = st.session_state.get('last_analysis', {})
-                 context_prompt = f"""
+               context_prompt = f"""
                     너는 전문 피부과 AI 코디네이터야. 사용자의 화장품 부작용 데이터를 분석해 줘.
                     - 사용자가 경험한 문제 제품: {last_data.get('problem_products', '선택되지 않음')}
                     - 사용자가 겪은 증상: {last_data.get('symptoms', '선택되지 않음')}
@@ -191,14 +191,6 @@ if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날�
                     
                     위 데이터를 바탕으로, 사용자의 질문("{user_input}")에 대해 
                     왜 이런 부작용이 발생했는지 인과관계를 논리적이고 친절하게 설명하고 대체 성분을 추천해 줘.
-                    
-                    [출력 형식 가이드]
-                    - 설명은 친절하고 전문적으로 작성하되,
-                    - **답변의 가장 마지막 줄에는 반드시 '💡 핵심 요약' 섹션을 두어, 
-                      1) 주요 원인 성분 및 기전
-                      2) 피해야 할 피부 반응
-                      3) 추천하는 대안/관리법
-                      을 이모지와 함께 3줄 이내의 불렛 포인트로 한눈에 보기 쉽게 요약해 줘.**
                     """
                     
                     response = model.generate_content(context_prompt)
