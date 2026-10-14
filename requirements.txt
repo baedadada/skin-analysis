@@ -4,3 +4,4 @@ pillow
 easyocr
 torch
 torchvision
+google-generativeai
