@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 import re
+import google.generativeai as genai
 
 # EasyOCR 로드
 try:
@@ -66,7 +67,7 @@ def match_product_from_image(img_file):
 # 3. 웹 UI 구성
 st.set_page_config(page_title="SkinTrace AI", page_icon="🧴", layout="centered")
 st.title("🧴 SkinTrace AI : 개인 맞춤 부작용 추적 비서")
-st.caption("다중 사진 인식(OCR)과 AI 원인 추적 분석을 통해 내 피부에 맞는 안전한 화장품을 찾아보세요.")
+st.caption("다중 사진 인식(OCR)과 생성형 AI(Gemini) 원인 추적 분석을 통해 내 피부에 맞는 안전한 화장품을 찾아보세요.")
 st.divider()
 
 # 📸 이미지 다중 업로드
@@ -140,6 +141,7 @@ if analysis_triggered:
         else:
             st.success("✅ **[안전] 과거 부작용 유발 제품의 주요 특이/위험 성분이 새 제품에서 발견되지 않았습니다.**")
 
+        # 챗봇 연동을 위해 세션에 데이터 저장
         st.session_state['last_analysis'] = {
             "problem_products": selected_problem_names,
             "symptoms": selected_symptoms,
@@ -147,9 +149,9 @@ if analysis_triggered:
             "matched_ingredients": list(matched)
         }
 
-# --- 🤖 AI 원인 추적 상담사 챗봇 UI ---
+# --- 🤖 실제 Gemini API 기반 AI 원인 추적 상담사 챗봇 ---
 st.divider()
-st.subheader("💬 AI 피부 전문 상담 에이전트")
+st.subheader("💬 AI 피부 전문 상담 에이전트 (Gemini 연동)")
 st.caption("분석된 결과나 성분에 대해 궁금한 점을 AI 코디네이터에게 자유롭게 물어보세요.")
 
 if "messages" not in st.session_state:
@@ -167,16 +169,34 @@ if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날�
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("사용자의 부작용 이력과 성분 데이터를 기반으로 AI가 추론 중입니다..."):
-            last_data = st.session_state.get('last_analysis', None)
-            if last_data and last_data['matched_ingredients']:
-                matched_str = ", ".join(last_data['matched_ingredients'])
-                symptom_str = ", ".join(last_data['symptoms']) if last_data['symptoms'] else "불편함"
-                ai_response = f"질문하신 내용과 기록을 대조해 보았을 때, 고객님이 겪으신 **'{symptom_str}'** 증상은 선택하신 문제 제품들과 구매 검토 중인 제품에 공통으로 포함된 **[{matched_str}]** 성분 때문일 가능성이 매우 높습니다. 해당 성분은 피부 장벽을 자극하거나 모공을 밀폐할 수 있으므로, 사용을 자제하시고 진정 성분 위주의 제품을 선택하시는 것을 추천합니다!"
-            elif last_data:
-                ai_response = f"선택하신 새 제품에는 과거 부작용을 일으킨 주요 특이 성분이 겹치지 않아 비교적 안전합니다. 다만 개인 체질이나 컨디션에 따라 다를 수 있으니 소량 테스트 후 사용하시는 것을 권장합니다."
+        with st.spinner("Gemini AI가 사용자의 부작용 이력과 성분 데이터를 기반으로 추론 중입니다..."):
+            
+            # Streamlit Secrets에서 Gemini API 키 가져오기 (없을 경우 안내 메시지)
+            api_key = st.secrets.get("GEMINI_API_KEY", None)
+            
+            if not api_key:
+                ai_response = "⚠️ **[API Key 설정 필요]** Streamlit Cloud의 Settings -> Secrets에 `GEMINI_API_KEY = \"당신의_키\"`를 등록해 주세요!"
             else:
-                ai_response = "먼저 상단에서 화장품 사진을 등록하시고 [AI 성분 위험도 및 원인 분석 실행] 버튼을 눌러주시면, 데이터를 바탕으로 더 정확한 원인 추적 답변을 드릴 수 있습니다!"
+                try:
+                    genai.configure(api_key=api_key)
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    last_data = st.session_state.get('last_analysis', {})
+                    context_prompt = f"""
+                    너는 전문 피부과 AI 코디네이터야. 사용자의 화장품 부작용 데이터를 분석해 줘.
+                    - 사용자가 경험한 문제 제품: {last_data.get('problem_products', '선택되지 않음')}
+                    - 사용자가 겪은 증상: {last_data.get('symptoms', '선택되지 않음')}
+                    - 구매 검토 중인 새 제품: {last_data.get('new_product', '선택되지 않음')}
+                    - 겹치는 위험 성분: {last_data.get('matched_ingredients', '없음')}
+                    
+                    위 데이터를 바탕으로, 사용자의 질문("{user_input}")에 대해 
+                    왜 이런 부작용이 발생했는지 인과관계를 논리적이고 친절하게 설명하고 대체 성분을 추천해 줘.
+                    """
+                    
+                    response = model.generate_content(context_prompt)
+                    ai_response = response.text
+                except Exception as e:
+                    ai_response = f"AI 응답 생성 중 오류가 발생했습니다: {str(e)}"
             
             st.markdown(ai_response)
             st.session_state.messages.append({"role": "assistant", "content": ai_response})
