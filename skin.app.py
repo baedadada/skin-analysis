@@ -171,7 +171,7 @@ if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날�
     with st.chat_message("assistant"):
         with st.spinner("Gemini AI가 사용자의 부작용 이력과 성분 데이터를 기반으로 추론 중입니다..."):
             
-            # Streamlit Secrets에서 Gemini API 키 가져오기 (없을 경우 안내 메시지)
+            # Streamlit Secrets에서 Gemini API 키 가져오기
             api_key = st.secrets.get("GEMINI_API_KEY", None)
             
             if not api_key:
@@ -182,18 +182,32 @@ if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날�
                     model = genai.GenerativeModel('gemini-3.8-flash')
                     
                     last_data = st.session_state.get('last_analysis', {})
-               context_prompt = f"""
-                    너는 전문 피부과 AI 코디네이터야. 사용자의 화장품 부작용 데이터를 분석해 줘.
-                    - 사용자가 경험한 문제 제품: {last_data.get('problem_products', '선택되지 않음')}
-                    - 사용자가 겪은 증상: {last_data.get('symptoms', '선택되지 않음')}
-                    - 구매 검토 중인 새 제품: {last_data.get('new_product', '선택되지 않음')}
-                    - 겹치는 위험 성분: {last_data.get('matched_ingredients', '없음')}
                     
-                    위 데이터를 바탕으로, 사용자의 질문("{user_input}")에 대해 
-                    왜 이런 부작용이 발생했는지 인과관계를 논리적이고 친절하게 설명하고 대체 성분을 추천해 줘.
-                    """
+                    # 들여쓰기 오류 원천 차단을 위해 변수를 바깥쪽으로 정렬
+                    p_prods = last_data.get('problem_products', '선택되지 않음')
+                    p_syms = last_data.get('symptoms', '선택되지 않음')
+                    n_prod = last_data.get('new_product', '선택되지 않음')
+                    m_ings = last_data.get('matched_ingredients', '없음')
                     
-                    response = model.generate_content(context_prompt)
+                    context_prompt = (
+                        "너는 전문 피부과 AI 코디네이터야. 사용자의 화장품 부작용 데이터를 분석해 줘.\n"
+                        f"- 사용자가 경험한 문제 제품: {p_prods}\n"
+                        f"- 사용자가 겪은 증상: {p_syms}\n"
+                        f"- 구매 검토 중인 새 제품: {n_prod}\n"
+                        f"- 겹치는 위험 성분: {m_ings}\n\n"
+                        f"위 데이터를 바탕으로, 사용자의 질문(\"{user_input}\")에 대해 "
+                        "왜 이런 부작용이 발생했는지 인과관계를 논리적이고 친절하게 설명하고 대체 성분을 추천해 줘.\n\n"
+                        "[출력 형식 가이드]\n"
+                        "- 설명은 친절하고 전문적으로 작성하되,\n"
+                        "- 답변의 가장 마지막 줄에는 반드시 '💡 핵심 요약' 섹션을 두어, "
+                        "1) 주요 원인 성분 및 기전, 2) 피해야 할 피부 반응, 3) 추천하는 대안/관리법을 "
+                        "이모지와 함께 3줄 이내의 불렛 포인트로 한눈에 보기 쉽게 요약해 줘."
+                    )
+                    
+                    response = model.generate_content(
+                        context_prompt,
+                        generation_config={"temperature": 0.3}
+                    )
                     ai_response = response.text
                 except Exception as e:
                     ai_response = f"AI 응답 생성 중 오류가 발생했습니다: {str(e)}"
