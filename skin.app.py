@@ -179,7 +179,7 @@ if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날�
             else:
                 try:
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    model = genai.GenerativeModel('gemini-3.8-flash')
                     
                     last_data = st.session_state.get('last_analysis', {})
                     context_prompt = f"""
