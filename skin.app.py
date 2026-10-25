@@ -204,7 +204,6 @@ with main_tab1:
             else:
                 st.warning("촬영된 이미지에서 제품을 인식하지 못했습니다.")
 
-    # 카메라 탭 내부
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("##### 📋 진단 세부 조건 입력")
     cam_symptoms = st.multiselect(
@@ -257,7 +256,7 @@ elif 'dir_triggered' in locals() and dir_triggered:
 else:
     analysis_triggered = False
 
-# 📋 진단서 / 처방전 카드 형태 출력 (빈 파란 박스 제거 후 깔끔하게 하나의 처방전 카드 안에 통합)
+# 📋 진단서 / 처방전 카드 형태 출력
 if analysis_triggered:
     if cam_triggered and not detected_from_cam:
         st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식 실패 시 '목록에서 직접 선택' 탭을 이용해 주세요)")
@@ -276,36 +275,29 @@ if analysis_triggered:
 
         st.markdown("---")
         
-        # ⭐ [처방전 카드 스타일 컨테이너 시작 - 전체 리포트가 이 박스 안에 예쁘게 들어갑니다]
-        st.markdown('<div class="prescription-medical-card">', unsafe_allow_html=True)
+        # ⭐ [처방전 카드 컨테이너 시작]
+        card_html = '<div class="prescription-medical-card">'
         
         # 처방전 헤더
-        st.markdown("""
+        card_html += """
             <div class="rx-header">
                 <h2 style='color:#0F2C59; margin:0; font-size:20px; font-weight:800;'>📋 DERMASAFE MEDICAL PRESCRIPTION REPORT</h2>
                 <p style='color:#64748B; margin:4px 0 0 0; font-size:13px;'>발급 기관: AI Clinical Preventive Skin Safeguard System</p>
             </div>
-        """, unsafe_allow_html=True)
+        """
         
-        st.markdown(f"**검토 대상 제품:** {used_new_name}")
-        st.markdown(f"**호소 이력 증상:** {', '.join(used_symptoms) if used_symptoms else '지정 없음'}")
-        st.markdown("<br>", unsafe_allow_html=True)
+        card_html += f"<p><b>검토 대상 제품:</b> {used_new_name}</p>"
+        card_html += f"<p><b>호소 이력 증상:</b> {', '.join(used_symptoms) if used_symptoms else '지정 없음'}</p><br>"
 
         # 🚨 구매 판정 배너
         if matched:
-            st.markdown(
-                '<div class="verdict-badge-danger">🚨 [구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다. 패치 테스트 후 사용을 권합니다.</div>',
-                unsafe_allow_html=True
-            )
+            card_html += '<div class="verdict-badge-danger">🚨 [구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다. 패치 테스트 후 사용을 권합니다.</div>'
         else:
-            st.markdown(
-                '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 포함되어 있지 않아 비교적 안심하고 사용 가능합니다.</div>',
-                unsafe_allow_html=True
-            )
+            card_html += '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 포함되어 있지 않아 비교적 안심하고 사용 가능합니다.</div>'
 
-        # 🔬 공통 성분별 [목적 / 효능 / 주의점] 정밀 분석 리스트
+        # 🔬 공통 성분별 정밀 분석 리스트
         if matched:
-            st.markdown("#### 🔬 감지된 공통 성분별 정밀 분석 리포트")
+            card_html += "<h4>🔬 감지된 공통 성분별 정밀 분석 리포트</h4>"
             for ing in matched:
                 info = INGREDIENT_INFO.get(ing, {
                     'category': '기능성 성분',
@@ -313,21 +305,20 @@ if analysis_triggered:
                     'benefits': '피부 유효 성분 전달',
                     'side_effects': '⚠️ 개인 컨디션 및 체질에 따른 민감 자극 가능성'
                 })
-                
-                st.markdown(f"""
+                card_html += f"""
                     <div class="ingredient-detail-card">
                         <div><span class="ing-title">🧪 {ing}</span> <span class="ing-badge">{info['category']}</span></div>
                         <div class="ing-row">🎯 <b>배합 목적:</b> {info['purpose']}</div>
                         <div class="ing-row" style="color: #047857;">✨ <b>주요 효능:</b> {info['benefits']}</div>
                         <div class="ing-row" style="color: #B91C1C; font-weight: 600;">⚠️ <b>주의점 및 부작용:</b> {info['side_effects']}</div>
                     </div>
-                """, unsafe_allow_html=True)
+                """
         else:
-            st.info("💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.")
+            card_html += "<p style='color:#64748B;'>💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.</p>"
 
         # 마일드 처방 가이드
-        st.markdown("---")
-        html_guide = """
+        card_html += """
+        <hr style='border:0; border-top:1px solid #CBD5E1; margin:20px 0;'>
         <div style='background-color:#F1F5F9; padding:16px; border-radius:10px; font-size:13px; color:#334155; line-height:1.6; border:1px solid #CBD5E1;'>
             <b>🌿 세이프가드 마일드 케어 처방 가이드</b><br>
             1. <b>부드러운 휴식 권장:</b> 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.<br>
@@ -335,10 +326,12 @@ if analysis_triggered:
             3. <b>전문가 상담:</b> 불편함이 가라앉지 않고 지속될 경우 피부과 전문의와 정밀한 상담을 받아보시는 것을 조심스럽게 권장합니다.
         </div>
         """
-        st.markdown(html_guide, unsafe_allow_html=True)
         
         # 처방전 카드 닫기
-        st.markdown('</div>', unsafe_allow_html=True)
+        card_html += '</div>'
+        
+        # 한 번에 렌더링하여 빈 박스 원천 차단
+        st.markdown(card_html, unsafe_allow_html=True)
 
         # 세션 저장
         st.session_state['last_analysis'] = {
