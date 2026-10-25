@@ -67,7 +67,7 @@ def match_product_from_image(img_file):
     except Exception as e:
         return None, f"오류: {str(e)}"
 
-# 3. 페이지 설정 및 차분한 연하늘빛 클리닉 스타일 CSS
+# 3. 페이지 설정 및 짙은 네이비 톤 CSS
 st.set_page_config(page_title="DermaSafe Rx | AI 피부 맞춤 처방전", page_icon="🩺", layout="wide")
 
 st.markdown("""
@@ -76,40 +76,40 @@ st.markdown("""
         background-color: #F8FAFC;
     }
     
-    /* 상단 히어로 배너 (연하늘빛 섞인 차분한 클리닉 톤) */
+    /* 상단 히어로 배너 (전문가다운 짙은 네이비 톤) */
     .hero-container {
-        background: linear-gradient(135deg, #38BDF8 0%, #0284C7 100%);
+        background: linear-gradient(135deg, #0F2C59 0%, #1E3A8A 100%);
         color: white;
         padding: 32px 25px;
         border-radius: 16px;
         text-align: center;
         margin-bottom: 25px;
-        box-shadow: 0 10px 20px -5px rgba(56, 189, 248, 0.25);
+        box-shadow: 0 10px 15px -3px rgba(15, 44, 89, 0.2);
     }
     
-    /* 🩺 병원/클리닉 진단서 형태의 메인 카드 스타일 */
+    /* 🩺 진단서/처방전 형태의 메인 카드 스타일 */
     .prescription-medical-card {
         background-color: #FFFFFF;
-        border: 2px solid #BAE6FD;
+        border: 2px solid #2563EB;
         border-radius: 20px;
         padding: 35px;
-        box-shadow: 0 20px 25px -5px rgba(14, 165, 233, 0.08);
+        box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.1);
         margin-top: 20px;
         margin-bottom: 20px;
     }
     
     /* 처방전 헤더 라인 */
     .rx-header {
-        border-bottom: 2px dashed #E2E8F0;
+        border-bottom: 2px dashed #CBD5E1;
         padding-bottom: 15px;
         margin-bottom: 20px;
     }
 
-    /* 구매 판정 배너 (차분하고 세련된 톤) */
+    /* 구매 판정 배너 */
     .verdict-badge-danger {
         background-color: #FEF2F2;
-        color: #B91C1C;
-        border: 1px solid #FECACA;
+        color: #DC2626;
+        border: 1px solid #FCA5A5;
         padding: 14px 20px;
         border-radius: 12px;
         font-weight: 700;
@@ -119,8 +119,8 @@ st.markdown("""
     }
     .verdict-badge-safe {
         background-color: #F0FDF4;
-        color: #15803D;
-        border: 1px solid #BBF7D0;
+        color: #16A34A;
+        border: 1px solid #86EFAC;
         padding: 14px 20px;
         border-radius: 12px;
         font-weight: 700;
@@ -131,14 +131,14 @@ st.markdown("""
 
     /* 성분 세부 분석 카드 */
     .ingredient-detail-card {
-        background-color: #F0F9FF;
-        border: 1px solid #E0F2FE;
+        background-color: #F8FAFC;
+        border: 1px solid #CBD5E1;
         border-radius: 12px;
         padding: 16px 18px;
         margin-bottom: 14px;
     }
     .ing-title {
-        color: #0369A1;
+        color: #0F2C59;
         font-size: 16px;
         font-weight: 800;
     }
@@ -164,7 +164,7 @@ st.markdown("""
 st.markdown("""
     <div class="hero-container">
         <h1 style="margin:0; font-size:28px; font-weight:800; color:#FFFFFF;">🩺 DermaSafe Rx</h1>
-        <p style="margin:6px 0 0 0; color:#E0F2FE; font-size:14px;">개인 부작용 이력 기반 AI 피부 자극 예측 & 정밀 성분 처방 솔루션</p>
+        <p style="margin:6px 0 0 0; color:#93C5FD; font-size:14px;">개인 부작용 이력 기반 AI 피부 자극 예측 & 정밀 성분 처방 솔루션</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -248,13 +248,13 @@ if analysis_triggered:
 
         st.markdown("---")
         
-        # ⭐ [클리닉 처방전 카드 스타일 컨테이너 시작]
+        # ⭐ [처방전 카드 스타일 컨테이너 시작]
         st.markdown('<div class="prescription-medical-card">', unsafe_allow_html=True)
         
         # 처방전 헤더
         st.markdown("""
             <div class="rx-header">
-                <h2 style='color:#0369A1; margin:0; font-size:20px; font-weight:800;'>📋 DERMASAFE MEDICAL PRESCRIPTION REPORT</h2>
+                <h2 style='color:#0F2C59; margin:0; font-size:20px; font-weight:800;'>📋 DERMASAFE MEDICAL PRESCRIPTION REPORT</h2>
                 <p style='color:#64748B; margin:4px 0 0 0; font-size:13px;'>발급 기관: AI Clinical Preventive Skin Safeguard System</p>
             </div>
         """, unsafe_allow_html=True)
@@ -295,12 +295,12 @@ if analysis_triggered:
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.")
+            st.info("💡 과거 자زل 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.")
 
         # 마일드 처방 가이드
         st.markdown("---")
         html_guide = """
-        <div style='background-color:#F0F9FF; padding:16px; border-radius:10px; font-size:13px; color:#334155; line-height:1.6; border:1px solid #E0F2FE;'>
+        <div style='background-color:#F1F5F9; padding:16px; border-radius:10px; font-size:13px; color:#334155; line-height:1.6; border:1px solid #CBD5E1;'>
             <b>🌿 세이프가드 마일드 케어 처방 가이드</b><br>
             1. <b>부드러운 휴식 권장:</b> 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.<br>
             2. <b>진정 중심 루틴:</b> 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.<br>
