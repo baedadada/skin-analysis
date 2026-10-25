@@ -153,21 +153,21 @@ st.markdown("""
     }
     .ing-row {
         margin-top: 6px;
-        font-size: 13px;
-        line-height: 1.5;
+        font-size: 14px;
+        line-height: 1.6;
         color: #334155;
     }
 
-    /* 하단 세이프 가이드 박스 */
+    /* 🌿 초록색 느낌을 살린 세이프 가이드 박스 (글씨 크기 및 가독성 개선) */
     .guide-box {
-        background-color: #F1F5F9;
-        padding: 16px;
-        border-radius: 10px;
-        font-size: 13px;
-        color: #334155;
+        background-color: #F0FDF4;
+        border: 1px solid #86EFAC;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-top: 24px;
+        font-size: 14px;
+        color: #166534;
         line-height: 1.6;
-        border: 1px solid #CBD5E1;
-        margin-top: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -268,7 +268,7 @@ elif 'dir_triggered' in locals() and dir_triggered:
 else:
     analysis_triggered = False
 
-# 📋 진단서 / 처방전 카드 형태 출력 (HTML 인덴트 꼬임 방지 수정 완료)
+# 📋 진단서 / 처방전 카드 형태 출력
 if analysis_triggered:
     if cam_triggered and not detected_from_cam:
         st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식 실패 시 '목록에서 직접 선택' 탭을 이용해 주세요)")
@@ -317,17 +317,17 @@ if analysis_triggered:
         else:
             ingredients_html += "<p style='color:#64748B;'>💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.</p>"
 
-        # 3. 하단 세이프 가이드
+        # 3. 하단 초록빛 세이프 가이드 박스
         guide_html = (
             '<div class="guide-box">'
-            '<b>🌿 세이프가드 마일드 케어 처방 가이드</b><br>'
-            '1. <b>부드러운 휴식 권장:</b> 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.<br>'
-            '2. <b>진정 중심 루틴:</b> 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.<br>'
+            '<b style="color: #15803D; font-size: 15px;">🌿 세이프가드 마일드 케어 처방 가이드</b><br><br>'
+            '1. <b>부드러운 휴식 권장:</b> 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.<br><br>'
+            '2. <b>진정 중심 루틴:</b> 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.<br><br>'
             '3. <b>전문가 상담:</b> 불편함이 가라앉지 않고 지속될 경우 피부과 전문의와 정밀한 상담을 받아보시는 것을 조심스럽게 권장합니다.'
             '</div>'
         )
 
-        # 4. 전체 HTML 조립 후 단 한 번에 출력 (HTML 파싱 버그 완벽 예방)
+        # 4. 전체 HTML 조립 후 단 한 번에 출력
         final_card_html = (
             f'<div class="prescription-medical-card">'
             f'<div class="rx-header">'
@@ -398,7 +398,7 @@ if user_input := st.chat_input("예: 이 성분 대신 쓸 수 있는 자극 없
                     ai_response = f"오류 발생: {str(e)}"
             
             st.markdown(ai_response)
-            st.session_state.messages.append({"role": "assistant", "content": ai_response})
+            st.session_state.messages.append({"role": "assistant", "node": ai_response})
 
 # 하단 푸터
 st.markdown("""
