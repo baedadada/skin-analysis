@@ -3,6 +3,7 @@ import pandas as pd
 from PIL import Image
 import re
 import google.generativeai as genai
+import time
 
 # EasyOCR 로드
 try:
@@ -374,7 +375,6 @@ if user_input := st.chat_input("예: 이 성분 대신 쓸 수 있는 자극 없
             else:
                 try:
                     genai.configure(api_key=api_key)
-                    # ⭐ 최신 모델명으로 업데이트 완료 ('gemini-3.8-flash')
                     model = genai.GenerativeModel('gemini-3.8-flash')
                     last_data = st.session_state.get('last_analysis', {})
                     
@@ -391,7 +391,11 @@ if user_input := st.chat_input("예: 이 성분 대신 쓸 수 있는 자극 없
                     response = model.generate_content(context_prompt)
                     ai_response = response.text
                 except Exception as e:
-                    ai_response = f"오류 발생: {str(e)}"
+                    err_msg = str(e)
+                    if "429" in err_msg or "Quota exceeded" in err_msg:
+                        ai_response = "⚠️ **[요청 한도 초과 안내]** 무료 API 사용량(분당 5회 요청 제한)을 초과했습니다. 약 50초 정도 잠시 숨을 고르신 후 다시 질문해 주세요! ☕"
+                    else:
+                        ai_response = f"⚠️ AI 응답 중 오류가 발생했습니다: {err_msg}"
             
             st.markdown(ai_response)
             st.session_state.messages.append({"role": "assistant", "content": ai_response})
