@@ -76,7 +76,7 @@ st.markdown("""
         background-color: #F8FAFC;
     }
     
-    /* 상단 히어로 배너 (전문가다운 짙은 네이비 톤) */
+    /* 상단 히어로 배너 */
     .hero-container {
         background: linear-gradient(135deg, #0F2C59 0%, #1E3A8A 100%);
         color: white;
@@ -168,31 +168,34 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 🎛️ 사용자 입력 모드 선택 탭
-st.subheader("🔍 피부 진단 조건 설정")
-st.caption("원하시는 방식을 선택하여 과거 트러블 유발 제품과 검토 중인 새 제품을 지정해 주세요.")
+# 공통 제품 딕셔너리
+product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
 
-input_tab1, input_tab2 = st.tabs(["📸 1. 카메라/사진으로 제품 등록하기", "🛒 2. 목록에서 직접 선택하기"])
+# 🎛️ 상단 탭: [1. 카메라/사진 등록] vs [2. 목록에서 직접 선택]
+st.subheader("🔍 피부 진단 조건 설정")
+st.caption("원하시는 방식을 선택하여 제품을 지정해 주세요.")
+
+main_tab1, main_tab2 = st.tabs(["📸 1. 카메라/사진으로 제품 등록", "🛒 2. 목록에서 직접 선택"])
 
 detected_from_cam = None
 
-with input_tab1:
+with main_tab1:
     st.markdown("##### 🖼️ 과거 자극을 주었던 제품의 사진을 업로드하거나 촬영해 주세요.")
-    cam_sub_tab1, cam_sub_tab2 = st.tabs(["파일 업로드", "실시간 카메라"])
+    cam_sub1, cam_sub2 = st.tabs(["파일 업로드", "실시간 카메라"])
     
-    with cam_sub_tab1:
-        up_file = st.file_uploader("사진 파일 선택", type=["jpg", "jpeg", "png"], key="uploader_1")
+    with cam_sub1:
+        up_file = st.file_uploader("사진 파일 선택", type=["jpg", "jpeg", "png"], key="uploader_cam")
         if up_file:
-            st.image(up_file, width=250, caption="등록된 제품 사진")
+            st.image(up_file, width=220, caption="등록된 제품 사진")
             matched, _ = match_product_from_image(up_file)
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
             else:
-                st.warning("사진에서 일치하는 제품을 찾지 못했습니다. 직접 선택 탭을 이용해 주세요.")
+                st.warning("사진에서 일치하는 제품을 찾지 못했습니다.")
 
-    with cam_sub_tab2:
-        cap_img = st.camera_input("제품 정면 촬영", key="camera_1")
+    with cam_sub2:
+        cap_img = st.camera_input("제품 정면 촬영", key="camera_cam")
         if cap_img:
             matched, _ = match_product_from_image(cap_img)
             if matched:
@@ -201,43 +204,72 @@ with input_tab1:
             else:
                 st.warning("촬영된 이미지에서 제품을 인식하지 못했습니다.")
 
-with input_tab2:
-    st.markdown("##### 📝 데이터베이스 목록에서 직접 제품들을 지정합니다.")
-
-# 공통 제품 딕셔너리
-product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
-
-# 진단 조건 폼 설정
-col_cond1, col_cond2 = st.columns(2, gap="medium")
-
-with col_cond1:
-    default_problems = [detected_from_cam] if detected_from_cam and detected_from_cam in product_dict else []
-    selected_problem_names = st.multiselect(
-        "⚠️ 과거 트러블 유발 제품 선택:",
-        options=list(product_dict.keys()),
-        default=default_problems,
-        help="카메라로 인식된 제품이 있다면 자동으로 여기에 추가됩니다."
-    )
-    selected_symptoms = st.multiselect(
-        "📌 과거 경험한 주요 증상:",
-        options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림']
-    )
-
-with col_cond2:
-    selected_new_name = st.selectbox(
-        "🛒 구매 검토 중인 새 제품 선택:",
-        options=list(product_dict.keys())
-    )
+    # 카메라 탭 내부의 하단 입력 요소 (문제 상품 선택만 제외)
     st.markdown("<br>", unsafe_allow_html=True)
-    analysis_triggered = st.button("🩺 정밀 처방전 카드 발급받기", type="primary", use_container_width=True)
+    st.markdown("##### 📋 진단 세부 조건 입력")
+    c_col1, c_col2 = st.columns(2, gap="medium")
+    with c_col1:
+        cam_symptoms = st.multiselect(
+            "📌 과거 경험한 주요 증상:",
+            options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
+            key="cam_sym"
+        )
+    with c_col2:
+        cam_new_name = st.selectbox(
+            "🛒 구매 검토 중인 새 제품 선택:",
+            options=list(product_dict.keys()),
+            key="cam_new"
+        )
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    cam_triggered = st.button("🩺 정밀 처방전 카드 발급받기 (카메라 탭)", type="primary", use_container_width=True, key="btn_cam")
+
+with main_tab2:
+    st.markdown("##### 📝 데이터베이스 목록에서 문제 제품과 새 제품을 직접 지정합니다.")
+    d_col1, d_col2 = st.columns(2, gap="medium")
+    with d_col1:
+        dir_problem_names = st.multiselect(
+            "⚠️ 과거 트러블 유발 제품 선택:",
+            options=list(product_dict.keys()),
+            key="dir_prob"
+        )
+        dir_symptoms = st.multiselect(
+            "📌 과거 경험한 주요 증상:",
+            options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
+            key="dir_sym"
+        )
+    with d_col2:
+        dir_new_name = st.selectbox(
+            "🛒 구매 검토 중인 새 제품 선택:",
+            options=list(product_dict.keys()),
+            key="dir_new"
+        )
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        dir_triggered = st.button("🩺 정밀 처방전 카드 발급받기 (목록 선택)", type="primary", use_container_width=True, key="btn_dir")
+
+# 어떤 버튼이 눌렸는지에 따라 분석 실행
+analysis_triggered = cam_triggered or (main_tab2 and 'dir_triggered' in locals() and dir_triggered)
+
+if cam_triggered:
+    used_problem_names = [detected_from_cam] if detected_from_cam and detected_from_cam in product_dict else []
+    used_symptoms = cam_symptoms
+    used_new_name = cam_new_name
+elif 'dir_triggered' in locals() and dir_triggered:
+    used_problem_names = dir_problem_names
+    used_symptoms = dir_symptoms
+    used_new_name = dir_new_name
+else:
+    analysis_triggered = False
 
 # 📋 진단서 / 처방전 카드 형태 출력
 if analysis_triggered:
-    if not selected_problem_names:
+    if cam_triggered and not detected_from_cam:
+        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식 실패 시 '목록에서 직접 선택' 탭을 이용해 주세요)")
+    elif not cam_triggered and not used_problem_names:
         st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 지정해 주세요!")
     else:
-        problem_ids = [product_dict[name] for name in selected_problem_names]
-        new_id = product_dict[selected_new_name]
+        problem_ids = [product_dict[name] for name in used_problem_names]
+        new_id = product_dict[used_new_name]
 
         problem_ings = [set(p['ingredients']) - COMMON_INGREDIENTS for p in products if p['id'] in problem_ids]
         all_ings = [ing for sub in problem_ings for ing in sub]
@@ -259,8 +291,8 @@ if analysis_triggered:
             </div>
         """, unsafe_allow_html=True)
         
-        st.markdown(f"**검토 대상 제품:** {selected_new_name}")
-        st.markdown(f"**호소 이력 증상:** {', '.join(selected_symptoms) if selected_symptoms else '지정 없음'}")
+        st.markdown(f"**검토 대상 제품:** {used_new_name}")
+        st.markdown(f"**호소 이력 증상:** {', '.join(used_symptoms) if used_symptoms else '지정 없음'}")
         st.markdown("<br>", unsafe_allow_html=True)
 
         # 🚨 구매 판정 배너
@@ -295,7 +327,7 @@ if analysis_triggered:
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("💡 과거 자زل 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.")
+            st.info("💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.")
 
         # 마일드 처방 가이드
         st.markdown("---")
@@ -314,9 +346,9 @@ if analysis_triggered:
 
         # 세션 저장
         st.session_state['last_analysis'] = {
-            "problem_products": selected_problem_names,
-            "symptoms": selected_symptoms,
-            "new_product": selected_new_name,
+            "problem_products": used_problem_names,
+            "symptoms": used_symptoms,
+            "new_product": used_new_name,
             "matched_ingredients": list(matched)
         }
 
