@@ -64,55 +64,147 @@ def match_product_from_image(img_file):
     except Exception as e:
         return None, f"오류: {str(e)}"
 
-# 3. 웹 UI 구성
-st.set_page_config(page_title="SkinTrace AI", page_icon="🧴", layout="centered")
-st.title("🧴 SkinTrace AI : 개인 맞춤 부작용 추적 비서")
-st.caption("다중 사진 인식(OCR)과 생성형 AI(Gemini) 원인 추적 분석을 통해 내 피부에 맞는 안전한 화장품을 찾아보세요.")
-st.divider()
+# 3. 페이지 설정 및 디자인 (모서리가 둥근 카드 스타일 CSS)
+st.set_page_config(page_title="DermaSafe Rx | AI 피부 맞춤 처방전", page_icon="🩺", layout="wide")
 
-# 📸 이미지 다중 업로드
-st.subheader("📸 1. 화장품 이미지 등록 (다중 스캔)")
-tab1, tab2 = st.tabs(["🖼️ 갤러리/파일 다중 업로드", "📷 카메라 실시간 촬영"])
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #F8FAFC;
+    }
+    
+    /* 상단 히어로 배너 */
+    .hero-container {
+        background: linear-gradient(135deg, #0F2C59 0%, #1E3A8A 100%);
+        color: white;
+        padding: 35px 30px;
+        border-radius: 16px;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 10px 15px -3px rgba(15, 44, 89, 0.2);
+    }
+    
+    /* 브랜드 카드 */
+    .feature-card {
+        background: white;
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid #E2E8F0;
+        text-align: center;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+    }
+
+    /* ⭐ 모서리가 둥근 팝업형 처방전 카드 스타일 */
+    .prescription-card {
+        background-color: #FFFFFF;
+        border: 2px solid #3B82F6;
+        border-radius: 24px;
+        padding: 32px;
+        box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.15);
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    
+    /* 구매 판정 배너 (위험/안전) */
+    .verdict-badge-danger {
+        background-color: #FEF2F2;
+        color: #DC2626;
+        border: 1px solid #FCA5A5;
+        padding: 12px 20px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 16px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .verdict-badge-safe {
+        background-color: #F0FDF4;
+        color: #16A34A;
+        border: 1px solid #86EFAC;
+        padding: 12px 20px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 16px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    /* 성분 상세 박스 */
+    .ingredient-box {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 헤더 배너
+st.markdown("""
+    <div class="hero-container">
+        <h1 style="margin:0; font-size:30px; font-weight:800;">🩺 DermaSafe Rx</h1>
+        <p style="margin:8px 0 0 0; color:#93C5FD; font-size:15px;">개인 부작용 이력 기반 AI 피부 자극 예측 & 맞춤 처방 솔루션</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# 가치 전달 카드 3개
+col_f1, col_f2, col_f3 = st.columns(3)
+with col_f1:
+    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📸</div><b style="color:#0F2C59;">다중 스캔 OCR</b><br><span style="font-size:13px; color:#64748B;">과거 실패 제품 사진 자동 인식</span></div>""", unsafe_allow_html=True)
+with col_f2:
+    st.markdown("""<div class="feature-card"><div style="font-size:24px;">🔬</div><b style="color:#0F2C59;">성분 인과 진단</b><br><span style="font-size:13px; color:#64748B;">목적·효능·부작용 정밀 분석</span></div>""", unsafe_allow_html=True)
+with col_f3:
+    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📋</div><b style="color:#0F2C59;">디지털 처방전</b><br><span style="font-size:13px; color:#64748B;">구매 전 안전 여부 톡톡 판정</span></div>""", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 입력 레이아웃 (좌우 분할)
+left_col, right_col = st.columns([1, 1], gap="large")
 auto_detected_products = []
 
-with tab1:
-    uploaded_files = st.file_uploader("과거 부작용 제품 사진을 여러 장 선택하세요", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-    if uploaded_files:
-        st.write(f"📷 총 {len(uploaded_files)}장의 사진이 업로드되었습니다.")
-        cols = st.columns(min(len(uploaded_files), 4))
-        for idx, file in enumerate(uploaded_files):
-            cols[idx % 4].image(file, caption=f"사진 {idx+1}", use_container_width=True)
-            matched, raw_text = match_product_from_image(file)
+with left_col:
+    st.subheader("📸 1. 화장품 이미지 등록")
+    st.caption("과거 자극을 주었던 제품의 사진을 업로드해 주세요.")
+    
+    tab1, tab2 = st.tabs(["🖼️ 파일 다중 업로드", "📷 실시간 카메라"])
+    with tab1:
+        uploaded_files = st.file_uploader("사진 선택 (여러 장 가능)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        if uploaded_files:
+            cols = st.columns(min(len(uploaded_files), 3))
+            for idx, file in enumerate(uploaded_files):
+                cols[idx % 3].image(file, caption=f"사진 {idx+1}", use_container_width=True)
+                matched, _ = match_product_from_image(file)
+                if matched and matched not in auto_detected_products:
+                    auto_detected_products.append(matched)
+    with tab2:
+        captured_image = st.camera_input("정면 촬영")
+        if captured_image:
+            st.image(captured_image, width=200)
+            matched, _ = match_product_from_image(captured_image)
             if matched and matched not in auto_detected_products:
                 auto_detected_products.append(matched)
 
-with tab2:
-    captured_image = st.camera_input("화장품 정면 촬영")
-    if captured_image:
-        st.image(captured_image, width=220)
-        matched, raw_text = match_product_from_image(captured_image)
-        if matched and matched not in auto_detected_products:
-            auto_detected_products.append(matched)
+    if auto_detected_products:
+        st.success(f"🎉 총 {len(auto_detected_products)}개 제품 자동 인식 완료!")
+        for prod in auto_detected_products:
+            st.markdown(f"- ✅ **{prod}**")
 
-if auto_detected_products:
-    st.success(f"🎉 총 {len(auto_detected_products)}개 제품이 자동으로 인식되었습니다!")
-    for prod in auto_detected_products:
-        st.markdown(f"- ✅ **{prod}**")
+with right_col:
+    st.subheader("⚠️ 2. 진단 조건 설정")
+    st.caption("부작용 이력과 검토 중인 새 제품을 지정하세요.")
+    
+    product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
+    default_selected = [p for p in auto_detected_products if p in product_dict]
 
-st.divider()
+    selected_problem_names = st.multiselect("과거 트러블 유발 제품:", options=list(product_dict.keys()), default=default_selected)
+    selected_symptoms = st.multiselect("📌 과거 겪은 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'])
+    selected_new_name = st.selectbox("🛒 구매 검토 중인 새 제품:", options=list(product_dict.keys()))
 
-# ⚠️ 제품 및 증상 설정
-st.subheader("⚠️ 2. 부작용 이력 및 구매 검토 제품 설정")
-product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
-default_selected = [p for p in auto_detected_products if p in product_dict]
+    st.markdown("<br>", unsafe_allow_html=True)
+    analysis_triggered = st.button("🩺 DermaSafe Rx 맞춤 처방전 발급받기", type="primary", use_container_width=True)
 
-selected_problem_names = st.multiselect("과거 부작용/트러블이 있었던 제품 (자동 선택됨 / 직접 추가 가능):", options=list(product_dict.keys()), default=default_selected)
-selected_symptoms = st.multiselect("📌 과거 경험한 주요 부작용 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'])
-selected_new_name = st.selectbox("🛒 구매 검토 중인 새 제품 (총 90종 중 선택):", options=list(product_dict.keys()))
-
-# 📊 분석 실행
-analysis_triggered = st.button("🔍 AI 성분 위험도 및 원인 분석 실행", type="primary", use_container_width=True)
-
+# 📊 둥근 카드형 처방전 리포트 출력
 if analysis_triggered:
     if not selected_problem_names:
         st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 선택해 주세요!")
@@ -127,21 +219,56 @@ if analysis_triggered:
         new_product_ings = set(next(p for p in products if p['id'] == new_id)['ingredients'])
         matched = new_product_ings.intersection(caution_ings)
 
-        st.divider()
-        st.subheader("📊 AI 맞춤 성분 분석 리포트")
-        st.write(f"**분석 대상 문제 제품 ({len(selected_problem_names)}개):** {', '.join(selected_problem_names)}")
-        if selected_symptoms:
-            st.write(f"**등록된 사용자 증상:** `{', '.join(selected_symptoms)}`")
+        st.markdown("---")
+        
+        # ⭐ 모서리가 둥근 팝업형 처방전 카드 시작
+        st.markdown('<div class="prescription-card">', unsafe_allow_html=True)
+        
+        st.markdown("<h2 style='color:#0F2C59; margin-top:0;'>📋 DERMASAFE PRESCRIPTION REPORT</h2>", unsafe_allow_html=True)
+        st.caption(f"비교 대상 새 제품: **{selected_new_name}** | 등록된 증상: **{', '.join(selected_symptoms) if selected_symptoms else '없음'}**")
+        st.markdown("<br>", unsafe_allow_html=True)
 
+        # 🚨 새 제품 사도 되는지 여부 판정 배너
         if matched:
-            st.warning(f"⚠️ **[주의] 과거 문제 제품과 겹치는 위험/특이 성분 {len(matched)}개가 발견되었습니다!**")
-            for ing in matched:
-                info = INGREDIENT_INFO.get(ing, {"category": "주의 성분", "info": "과거 부작용 유발 제품 포함 성분"})
-                st.markdown(f"- **{ing}** (`{info['category']}`) : {info['info']}")
+            st.markdown(
+                '<div class="verdict-badge-danger">🚨 [구매 보류 권장] 과거 자극 성분과 겹칩니다. 신중한 검토가 필요합니다!</div>',
+                unsafe_allow_html=True
+            )
         else:
-            st.success("✅ **[안전] 과거 부작용 유발 제품의 주요 특이/위험 성분이 새 제품에서 발견되지 않았습니다.**")
+            st.markdown(
+                '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 없어 안심하고 검토하셔도 좋습니다.</div>',
+                unsafe_allow_html=True
+            )
 
-        # 챗봇 연동을 위해 세션에 데이터 저장
+        # 성분 상세 분석 영역 (목적, 효능, 부작용 포함)
+        if matched:
+            st.markdown("#### 🔬 공통 감지 성분 및 상세 프로필 (목적·효능·부작용)")
+            for ing in matched:
+                info = INGREDIENT_INFO.get(ing, {"category": "기능성 성분", "info": "과거 부작용 유발 제품에 공통으로 포함된 성분입니다."})
+                
+                st.markdown(f"""
+                    <div class="ingredient-box">
+                        <b style="color:#1E3A8A; font-size:16px;">🧪 {ing}</b> <span style="background:#E2E8F0; padding:2px 8px; border-radius:6px; font-size:12px;">{info['category']}</span><br>
+                        <hr style="margin:8px 0; border:0; border-top:1px solid #CBD5E1;">
+                        <b>• 성분 목적 및 효능:</b> {info['info']}<br>
+                        <b>• 잠재적 피부 반응 (부작용 가능성):</b> 과거 유사 성분이 포함된 제품 사용 시 <i>{', '.join(selected_symptoms) if selected_symptoms else '따가움 또는 트러블'}</i> 반응과 연관되었을 수 있으니 주의가 필요합니다.
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("💡 새 제품에는 과거 자극을 유발했던 성분과의 공통 교집합이 발견되지 않았습니다. 단, 개인별 피부 컨디션에 따라 다를 수 있습니다.")
+
+        # 마일드 처방 가이드
+        st.markdown("---")
+        st.markdown("#### 🌿 세이프가드 마일드 케어 처방 가이드")
+        st.markdown(
+            "1. **사용 조율:** 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.\n"
+            "2. **진정 중심 루틴:** 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.\n"
+            "3. **전문가 상담:** 불편함이 가라앉지 않고 지속될 경우 피부과 전문의와 정밀한 상담을 받아보시는 것을 조심스럽게 권장합니다."
+        )
+        
+        st.markdown('</div>', unsafe_allow_html=True) # 둥근 카드 닫기
+
+        # 세션 저장
         st.session_state['last_analysis'] = {
             "problem_products": selected_problem_names,
             "symptoms": selected_symptoms,
@@ -149,68 +276,58 @@ if analysis_triggered:
             "matched_ingredients": list(matched)
         }
 
-# --- 🤖 실제 Gemini API 기반 AI 원인 추적 상담사 챗봇 ---
-st.divider()
-st.subheader("💬 AI 피부 전문 상담 에이전트 (Gemini 연동)")
-st.caption("분석된 결과나 성분에 대해 궁금한 점을 AI 코디네이터에게 자유롭게 물어보세요.")
+# 💬 AI 상담 챗봇
+st.markdown("<br><hr><br>", unsafe_allow_html=True)
+st.subheader("💬 AI 피부 전문 코디네이터 상담")
+st.caption("처방전 결과나 성분에 대해 궁금한 점을 자유롭게 물어보세요.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "안녕하세요! 피부 부작용 원인 분석 AI 코디네이터입니다. 화장품 사진을 등록하고 분석을 실행한 뒤 궁금한 점을 물어보세요."}
+        {"role": "assistant", "content": "안녕하세요! DermaSafe Rx AI 코디네이터입니다. 처방전 발급 후 궁금하신 점을 말씀해 주세요."}
     ]
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if user_input := st.chat_input("예: 이 제품을 쓰고 왜 트러블이 날까? 대체할 성분 추천해줘"):
+if user_input := st.chat_input("예: 이 성분 빼고 대체할 만한 스킨케어 성분 추천해줘"):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("Gemini AI가 사용자의 부작용 이력과 성분 데이터를 기반으로 추론 중입니다..."):
-            
-            # Streamlit Secrets에서 Gemini API 키 가져오기
+        with st.spinner("AI가 처방 데이터와 성분 프로필을 분석 중입니다..."):
             api_key = st.secrets.get("GEMINI_API_KEY", None)
-            
             if not api_key:
-                ai_response = "⚠️ **[API Key 설정 필요]** Streamlit Cloud의 Settings -> Secrets에 `GEMINI_API_KEY = \"당신의_키\"`를 등록해 주세요!"
+                ai_response = "⚠️ **[API Key 필요]** Secrets에 `GEMINI_API_KEY`를 설정해 주세요."
             else:
                 try:
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-3.8-flash')
-                    
+                    model = genai.GenerativeModel('gemini-2.0-flash')
                     last_data = st.session_state.get('last_analysis', {})
                     
-                    # 들여쓰기 오류 원천 차단을 위해 변수를 바깥쪽으로 정렬
-                    p_prods = last_data.get('problem_products', '선택되지 않음')
-                    p_syms = last_data.get('symptoms', '선택되지 않음')
-                    n_prod = last_data.get('new_product', '선택되지 않음')
-                    m_ings = last_data.get('matched_ingredients', '없음')
-                    
                     context_prompt = (
-                        "너는 전문 피부과 AI 코디네이터야. 사용자의 화장품 부작용 데이터를 분석해 줘.\n"
-                        f"- 사용자가 경험한 문제 제품: {p_prods}\n"
-                        f"- 사용자가 겪은 증상: {p_syms}\n"
-                        f"- 구매 검토 중인 새 제품: {n_prod}\n"
-                        f"- 겹치는 위험 성분: {m_ings}\n\n"
-                        f"위 데이터를 바탕으로, 사용자의 질문(\"{user_input}\")에 대해 "
-                        "왜 이런 부작용이 발생했는지 인과관계를 논리적이고 친절하게 설명하고 대체 성분을 추천해 줘.\n\n"
-                        "[출력 형식 가이드]\n"
-                        "- 설명은 친절하고 전문적으로 작성하되,\n"
-                        "- 답변의 가장 마지막 줄에는 반드시 '💡 핵심 요약' 섹션을 두어, "
-                        "1) 주요 원인 성분 및 기전, 2) 피해야 할 피부 반응, 3) 추천하는 대안/관리법을 "
-                        "이모지와 함께 3줄 이내의 불렛 포인트로 한눈에 보기 쉽게 요약해 줘."
+                        "너는 DermaSafe Rx의 전문 피부과 AI 코디네이터야.\n"
+                        f"- 문제 제품: {last_data.get('problem_products', '없음')}\n"
+                        f"- 증상: {last_data.get('symptoms', '없음')}\n"
+                        f"- 새 제품: {last_data.get('new_product', '없음')}\n"
+                        f"- 겹치는 성분: {last_data.get('matched_ingredients', '없음')}\n\n"
+                        f"사용자 질문: \"{user_input}\"\n"
+                        "⚠️ 지침: 무조건 성분 탓으로 단정하지 말고 부드럽고 객관적으로 설명해 줘. "
+                        "단호하게 지시하기보다 '사용을 잠시 멈추고 피부에 휴식을 주시는 것을 권해드립니다'와 같이 정중한 어조로 조언해 줘."
                     )
-                    
-                    response = model.generate_content(
-                        context_prompt,
-                        generation_config={"temperature": 0.3}
-                    )
+                    response = model.generate_content(context_prompt)
                     ai_response = response.text
                 except Exception as e:
-                    ai_response = f"AI 응답 생성 중 오류가 발생했습니다: {str(e)}"
+                    ai_response = f"오류 발생: {str(e)}"
             
             st.markdown(ai_response)
             st.session_state.messages.append({"role": "assistant", "content": ai_response})
+
+# 하단 푸터
+st.markdown("""
+    <br><br>
+    <div style="text-align: center; color: #94A3B8; font-size: 12px; padding: 20px 0; border-top: 1px solid #E2E8F0;">
+        © 2026 DermaSafe Rx. All rights reserved. | AI-Powered Preventive Skin Safeguard Platform
+    </div>
+""", unsafe_allow_html=True)
