@@ -158,7 +158,7 @@ st.markdown("""
         color: #334155;
     }
 
-    /* 🌿 초록색 느낌을 살린 세이프 가이드 박스 (글씨 크기 및 가독성 개선) */
+    /* 초록색 세이프 가이드 박스 */
     .guide-box {
         background-color: #F0FDF4;
         border: 1px solid #86EFAC;
@@ -287,7 +287,6 @@ if analysis_triggered:
 
         st.markdown("---")
         
-        # 1. 처방전 카드 상단 조립
         symptoms_str = ', '.join(used_symptoms) if used_symptoms else '지정 없음'
         
         if matched:
@@ -295,7 +294,6 @@ if analysis_triggered:
         else:
             verdict_html = '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 포함되어 있지 않아 비교적 안심하고 사용 가능합니다.</div>'
 
-        # 2. 감지된 성분 리포트 조립
         ingredients_html = ""
         if matched:
             ingredients_html += "<h4 style='color:#0F2C59; margin-top:15px;'>🔬 감지된 공통 성분별 정밀 분석 리포트</h4>"
@@ -317,7 +315,6 @@ if analysis_triggered:
         else:
             ingredients_html += "<p style='color:#64748B;'>💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.</p>"
 
-        # 3. 하단 초록빛 세이프 가이드 박스
         guide_html = (
             '<div class="guide-box">'
             '<b style="color: #15803D; font-size: 15px;">🌿 세이프가드 마일드 케어 처방 가이드</b><br><br>'
@@ -327,7 +324,6 @@ if analysis_triggered:
             '</div>'
         )
 
-        # 4. 전체 HTML 조립 후 단 한 번에 출력
         final_card_html = (
             f'<div class="prescription-medical-card">'
             f'<div class="rx-header">'
@@ -344,7 +340,6 @@ if analysis_triggered:
         
         st.markdown(final_card_html, unsafe_allow_html=True)
 
-        # 세션 저장
         st.session_state['last_analysis'] = {
             "problem_products": used_problem_names,
             "symptoms": used_symptoms,
@@ -379,7 +374,8 @@ if user_input := st.chat_input("예: 이 성분 대신 쓸 수 있는 자극 없
             else:
                 try:
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-2.0-flash')
+                    # ⭐ 최신 모델명으로 업데이트 완료 ('gemini-3.8-flash')
+                    model = genai.GenerativeModel('gemini-3.8-flash')
                     last_data = st.session_state.get('last_analysis', {})
                     
                     context_prompt = (
@@ -398,7 +394,7 @@ if user_input := st.chat_input("예: 이 성분 대신 쓸 수 있는 자극 없
                     ai_response = f"오류 발생: {str(e)}"
             
             st.markdown(ai_response)
-            st.session_state.messages.append({"role": "assistant", "node": ai_response})
+            st.session_state.messages.append({"role": "assistant", "content": ai_response})
 
 # 하단 푸터
 st.markdown("""
