@@ -16,7 +16,7 @@ try:
 except Exception:
     HAS_OCR = False
 
-# 1. 데이터 로드 (products.csv 및 ingredients.csv - 세미콜론 ; 구분 파싱 적용)
+# 1. 데이터 로드 (products.csv 및 ingredients.csv - 세미콜론 ; 구분 파싱)
 @st.cache_data
 def load_data():
     products_df = pd.read_csv('products.csv')
@@ -29,7 +29,6 @@ def load_data():
             'name': str(row['name']),
             'category': str(row['category']),
             'keywords': [k.strip() for k in str(row['keywords']).split(',') if k.strip()],
-            # ⭐ 세미콜론(;) 분리로 1,2-헥산다이올 등 성분명 깨짐 방지
             'ingredients': [i.strip() for i in str(row['ingredients']).split(';') if i.strip()]
         })
         
@@ -68,7 +67,7 @@ def match_product_from_image(img_file):
     except Exception as e:
         return None, f"오류: {str(e)}"
 
-# 3. 페이지 설정 및 디자인 (모서리가 둥근 처방전 카드 CSS)
+# 3. 페이지 설정 및 차분한 연하늘빛 클리닉 스타일 CSS
 st.set_page_config(page_title="DermaSafe Rx | AI 피부 맞춤 처방전", page_icon="🩺", layout="wide")
 
 st.markdown("""
@@ -77,88 +76,86 @@ st.markdown("""
         background-color: #F8FAFC;
     }
     
-    /* 상단 히어로 배너 */
+    /* 상단 히어로 배너 (연하늘빛 섞인 차분한 클리닉 톤) */
     .hero-container {
-        background: linear-gradient(135deg, #0F2C59 0%, #1E3A8A 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #0284C7 100%);
         color: white;
-        padding: 35px 30px;
+        padding: 32px 25px;
         border-radius: 16px;
         text-align: center;
         margin-bottom: 25px;
-        box-shadow: 0 10px 15px -3px rgba(15, 44, 89, 0.2);
+        box-shadow: 0 10px 20px -5px rgba(56, 189, 248, 0.25);
     }
     
-    /* 서비스 특징 카드 */
-    .feature-card {
-        background: white;
-        padding: 20px;
-        border-radius: 16px;
-        border: 1px solid #E2E8F0;
-        text-align: center;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-    }
-
-    /* ⭐ 모서리가 둥근 팝업형 처방전 카드 */
-    .prescription-card {
+    /* 🩺 병원/클리닉 진단서 형태의 메인 카드 스타일 */
+    .prescription-medical-card {
         background-color: #FFFFFF;
-        border: 2px solid #3B82F6;
-        border-radius: 24px;
-        padding: 32px;
-        box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.15);
+        border: 2px solid #BAE6FD;
+        border-radius: 20px;
+        padding: 35px;
+        box-shadow: 0 20px 25px -5px rgba(14, 165, 233, 0.08);
         margin-top: 20px;
         margin-bottom: 20px;
     }
     
-    /* 구매 판정 배너 */
+    /* 처방전 헤더 라인 */
+    .rx-header {
+        border-bottom: 2px dashed #E2E8F0;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+    }
+
+    /* 구매 판정 배너 (차분하고 세련된 톤) */
     .verdict-badge-danger {
         background-color: #FEF2F2;
-        color: #DC2626;
-        border: 1px solid #FCA5A5;
+        color: #B91C1C;
+        border: 1px solid #FECACA;
         padding: 14px 20px;
         border-radius: 12px;
         font-weight: 700;
-        font-size: 16px;
+        font-size: 15px;
         text-align: center;
         margin-bottom: 24px;
     }
     .verdict-badge-safe {
         background-color: #F0FDF4;
-        color: #16A34A;
-        border: 1px solid #86EFAC;
+        color: #15803D;
+        border: 1px solid #BBF7D0;
         padding: 14px 20px;
         border-radius: 12px;
         font-weight: 700;
-        font-size: 16px;
+        font-size: 15px;
         text-align: center;
         margin-bottom: 24px;
     }
 
-    /* ⭐ 성분 세부 분석 카드 (효능/주의점 대비) */
+    /* 성분 세부 분석 카드 */
     .ingredient-detail-card {
-        background-color: #F8FAFC;
-        border: 1px solid #CBD5E1;
-        border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 16px;
+        background-color: #F0F9FF;
+        border: 1px solid #E0F2FE;
+        border-radius: 12px;
+        padding: 16px 18px;
+        margin-bottom: 14px;
     }
     .ing-title {
-        color: #0F2C59;
-        font-size: 17px;
+        color: #0369A1;
+        font-size: 16px;
         font-weight: 800;
     }
     .ing-badge {
         background-color: #E0F2FE;
         color: #0284C7;
-        padding: 3px 10px;
+        padding: 2px 8px;
         border-radius: 6px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
-        margin-left: 8px;
+        margin-left: 6px;
     }
     .ing-row {
-        margin-top: 8px;
-        font-size: 14px;
-        line-height: 1.6;
+        margin-top: 6px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #334155;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -166,71 +163,78 @@ st.markdown("""
 # 헤더 배너
 st.markdown("""
     <div class="hero-container">
-        <h1 style="margin:0; font-size:30px; font-weight:800;">🩺 DermaSafe Rx</h1>
-        <p style="margin:8px 0 0 0; color:#93C5FD; font-size:15px;">올리브영 스킨케어 200 베스트셀러 기반 AI 피부 자극 예측 & 정밀 성분 처방 솔루션</p>
+        <h1 style="margin:0; font-size:28px; font-weight:800; color:#FFFFFF;">🩺 DermaSafe Rx</h1>
+        <p style="margin:6px 0 0 0; color:#E0F2FE; font-size:14px;">개인 부작용 이력 기반 AI 피부 자극 예측 & 정밀 성분 처방 솔루션</p>
     </div>
 """, unsafe_allow_html=True)
 
-# 가치 전달 카드 3개
-col_f1, col_f2, col_f3 = st.columns(3)
-with col_f1:
-    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📸</div><b style="color:#0F2C59;">다중 스캔 OCR</b><br><span style="font-size:13px; color:#64748B;">스킨케어 200개 제품 자동 인식</span></div>""", unsafe_allow_html=True)
-with col_f2:
-    st.markdown("""<div class="feature-card"><div style="font-size:24px;">🔬</div><b style="color:#0F2C59;">성분 정밀 백과사전</b><br><span style="font-size:13px; color:#64748B;">목적·효능·주의점 1:1 매핑</span></div>""", unsafe_allow_html=True)
-with col_f3:
-    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📋</div><b style="color:#0F2C59;">디지털 처방전</b><br><span style="font-size:13px; color:#64748B;">구매 전 안심 여부 즉시 판정</span></div>""", unsafe_allow_html=True)
+# 🎛️ 사용자 입력 모드 선택 탭
+st.subheader("🔍 피부 진단 조건 설정")
+st.caption("원하시는 방식을 선택하여 과거 트러블 유발 제품과 검토 중인 새 제품을 지정해 주세요.")
 
-st.markdown("<br>", unsafe_allow_html=True)
+input_tab1, input_tab2 = st.tabs(["📸 1. 카메라/사진으로 제품 등록하기", "🛒 2. 목록에서 직접 선택하기"])
 
-# 입력 레이아웃 (좌우 분할)
-left_col, right_col = st.columns([1, 1], gap="large")
-auto_detected_products = []
+detected_from_cam = None
 
-with left_col:
-    st.subheader("📸 1. 화장품 이미지 등록")
-    st.caption("과거 피부에 자극을 주었던 스킨케어 제품 사진을 업로드해 주세요.")
+with input_tab1:
+    st.markdown("##### 🖼️ 과거 자극을 주었던 제품의 사진을 업로드하거나 촬영해 주세요.")
+    cam_sub_tab1, cam_sub_tab2 = st.tabs(["파일 업로드", "실시간 카메라"])
     
-    tab1, tab2 = st.tabs(["🖼️ 파일 다중 업로드", "📷 실시간 카메라"])
-    with tab1:
-        uploaded_files = st.file_uploader("사진 선택 (여러 장 가능)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-        if uploaded_files:
-            cols = st.columns(min(len(uploaded_files), 3))
-            for idx, file in enumerate(uploaded_files):
-                cols[idx % 3].image(file, caption=f"사진 {idx+1}", use_container_width=True)
-                matched, _ = match_product_from_image(file)
-                if matched and matched not in auto_detected_products:
-                    auto_detected_products.append(matched)
-    with tab2:
-        captured_image = st.camera_input("정면 촬영")
-        if captured_image:
-            st.image(captured_image, width=200)
-            matched, _ = match_product_from_image(captured_image)
-            if matched and matched not in auto_detected_products:
-                auto_detected_products.append(matched)
+    with cam_sub_tab1:
+        up_file = st.file_uploader("사진 파일 선택", type=["jpg", "jpeg", "png"], key="uploader_1")
+        if up_file:
+            st.image(up_file, width=250, caption="등록된 제품 사진")
+            matched, _ = match_product_from_image(up_file)
+            if matched:
+                detected_from_cam = matched
+                st.success(f"🎉 자동 인식된 제품: **{matched}**")
+            else:
+                st.warning("사진에서 일치하는 제품을 찾지 못했습니다. 직접 선택 탭을 이용해 주세요.")
 
-    if auto_detected_products:
-        st.success(f"🎉 총 {len(auto_detected_products)}개 제품 자동 인식 완료!")
-        for prod in auto_detected_products:
-            st.markdown(f"- ✅ **{prod}**")
+    with cam_sub_tab2:
+        cap_img = st.camera_input("제품 정면 촬영", key="camera_1")
+        if cap_img:
+            matched, _ = match_product_from_image(cap_img)
+            if matched:
+                detected_from_cam = matched
+                st.success(f"🎉 자동 인식된 제품: **{matched}**")
+            else:
+                st.warning("촬영된 이미지에서 제품을 인식하지 못했습니다.")
 
-with right_col:
-    st.subheader("⚠️ 2. 진단 조건 설정")
-    st.caption("과거 부작용 증상과 검토 중인 새 스킨케어 제품을 지정하세요.")
-    
-    product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
-    default_selected = [p for p in auto_detected_products if p in product_dict]
+with input_tab2:
+    st.markdown("##### 📝 데이터베이스 목록에서 직접 제품들을 지정합니다.")
 
-    selected_problem_names = st.multiselect("과거 트러블 유발 제품:", options=list(product_dict.keys()), default=default_selected)
-    selected_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'])
-    selected_new_name = st.selectbox("🛒 구매 검토 중인 새 제품:", options=list(product_dict.keys()))
+# 공통 제품 딕셔너리
+product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
 
+# 진단 조건 폼 설정
+col_cond1, col_cond2 = st.columns(2, gap="medium")
+
+with col_cond1:
+    default_problems = [detected_from_cam] if detected_from_cam and detected_from_cam in product_dict else []
+    selected_problem_names = st.multiselect(
+        "⚠️ 과거 트러블 유발 제품 선택:",
+        options=list(product_dict.keys()),
+        default=default_problems,
+        help="카메라로 인식된 제품이 있다면 자동으로 여기에 추가됩니다."
+    )
+    selected_symptoms = st.multiselect(
+        "📌 과거 경험한 주요 증상:",
+        options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림']
+    )
+
+with col_cond2:
+    selected_new_name = st.selectbox(
+        "🛒 구매 검토 중인 새 제품 선택:",
+        options=list(product_dict.keys())
+    )
     st.markdown("<br>", unsafe_allow_html=True)
-    analysis_triggered = st.button("🩺 DermaSafe Rx 정밀 처방전 발급받기", type="primary", use_container_width=True)
+    analysis_triggered = st.button("🩺 정밀 처방전 카드 발급받기", type="primary", use_container_width=True)
 
-# 📊 정밀 처방전 카드 출력
+# 📋 진단서 / 처방전 카드 형태 출력
 if analysis_triggered:
     if not selected_problem_names:
-        st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 선택해 주세요!")
+        st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 지정해 주세요!")
     else:
         problem_ids = [product_dict[name] for name in selected_problem_names]
         new_id = product_dict[selected_new_name]
@@ -244,17 +248,25 @@ if analysis_triggered:
 
         st.markdown("---")
         
-        # 둥근 팝업형 처방전 카드 시작
-        st.markdown('<div class="prescription-card">', unsafe_allow_html=True)
+        # ⭐ [클리닉 처방전 카드 스타일 컨테이너 시작]
+        st.markdown('<div class="prescription-medical-card">', unsafe_allow_html=True)
         
-        st.markdown("<h2 style='color:#0F2C59; margin-top:0;'>📋 DERMASAFE PRESCRIPTION REPORT</h2>", unsafe_allow_html=True)
-        st.caption(f"검토 제품: **{selected_new_name}** | 호소 증상: **{', '.join(selected_symptoms) if selected_symptoms else '없음'}**")
+        # 처방전 헤더
+        st.markdown("""
+            <div class="rx-header">
+                <h2 style='color:#0369A1; margin:0; font-size:20px; font-weight:800;'>📋 DERMASAFE MEDICAL PRESCRIPTION REPORT</h2>
+                <p style='color:#64748B; margin:4px 0 0 0; font-size:13px;'>발급 기관: AI Clinical Preventive Skin Safeguard System</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"**검토 대상 제품:** {selected_new_name}")
+        st.markdown(f"**호소 이력 증상:** {', '.join(selected_symptoms) if selected_symptoms else '지정 없음'}")
         st.markdown("<br>", unsafe_allow_html=True)
 
         # 🚨 구매 판정 배너
         if matched:
             st.markdown(
-                '<div class="verdict-badge-danger">🚨 [구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다. 테스트 후 접근을 권합니다.</div>',
+                '<div class="verdict-badge-danger">🚨 [구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다. 패치 테스트 후 사용을 권합니다.</div>',
                 unsafe_allow_html=True
             )
         else:
@@ -265,7 +277,7 @@ if analysis_triggered:
 
         # 🔬 공통 성분별 [목적 / 효능 / 주의점] 정밀 분석 리스트
         if matched:
-            st.markdown("#### 🔬 감지된 공통 성분별 정밀 분석 (효능 및 주의점)")
+            st.markdown("#### 🔬 감지된 공통 성분별 정밀 분석 리포트")
             for ing in matched:
                 info = INGREDIENT_INFO.get(ing, {
                     'category': '기능성 성분',
@@ -287,13 +299,17 @@ if analysis_triggered:
 
         # 마일드 처방 가이드
         st.markdown("---")
-        st.markdown("#### 🌿 세이프가드 마일드 케어 처방 가이드")
-        st.markdown(
-            "1. **부드러운 휴식 권장:** 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.\n"
-            "2. **진정 중심 루틴:** 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.\n"
-            "3. **전문가 상담:** 불편함이 가라앉지 않고 지속될 경우 피부과 전문의와 정밀한 상담을 받아보시는 것을 조심스럽게 권장합니다."
-        )
+        html_guide = """
+        <div style='background-color:#F0F9FF; padding:16px; border-radius:10px; font-size:13px; color:#334155; line-height:1.6; border:1px solid #E0F2FE;'>
+            <b>🌿 세이프가드 마일드 케어 처방 가이드</b><br>
+            1. <b>부드러운 휴식 권장:</b> 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.<br>
+            2. <b>진정 중심 루틴:</b> 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.<br>
+            3. <b>전문가 상담:</b> 불편함이 가라앉지 않고 지속될 경우 피부과 전문의와 정밀한 상담을 받아보시는 것을 조심스럽게 권장합니다.
+        </div>
+        """
+        st.markdown(html_guide, unsafe_allow_html=True)
         
+        # 처방전 카드 닫기
         st.markdown('</div>', unsafe_allow_html=True)
 
         # 세션 저장
