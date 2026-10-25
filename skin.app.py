@@ -87,7 +87,7 @@ st.markdown("""
         box-shadow: 0 10px 15px -3px rgba(15, 44, 89, 0.2);
     }
     
-    /* 🩺 진단서/처방전 형태의 메인 카드 스타일 */
+    /* 🩺 리포트 전체를 감싸는 단 하나의 깔끔한 처방전 카드 스타일 */
     .prescription-medical-card {
         background-color: #FFFFFF;
         border: 2px solid #2563EB;
@@ -204,7 +204,7 @@ with main_tab1:
             else:
                 st.warning("촬영된 이미지에서 제품을 인식하지 못했습니다.")
 
-    # 카메라 탭 내부 (단일 컬럼으로 아래로 떨어지게 배치)
+    # 카메라 탭 내부
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("##### 📋 진단 세부 조건 입력")
     cam_symptoms = st.multiselect(
@@ -224,7 +224,6 @@ with main_tab1:
 with main_tab2:
     st.markdown("##### 📝 데이터베이스 목록에서 문제 제품과 새 제품을 직접 지정합니다.")
     
-    # 💡 좌우 분할을 없애고 전체 너비로 세로 정렬되도록 수정
     dir_problem_names = st.multiselect(
         "⚠️ 과거 트러블 유발 제품 선택:",
         options=list(product_dict.keys()),
@@ -258,7 +257,7 @@ elif 'dir_triggered' in locals() and dir_triggered:
 else:
     analysis_triggered = False
 
-# 📋 진단서 / 처방전 카드 형태 출력
+# 📋 진단서 / 처방전 카드 형태 출력 (빈 파란 박스 제거 후 깔끔하게 하나의 처방전 카드 안에 통합)
 if analysis_triggered:
     if cam_triggered and not detected_from_cam:
         st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식 실패 시 '목록에서 직접 선택' 탭을 이용해 주세요)")
@@ -277,7 +276,7 @@ if analysis_triggered:
 
         st.markdown("---")
         
-        # ⭐ [처방전 카드 스타일 컨테이너 시작]
+        # ⭐ [처방전 카드 스타일 컨테이너 시작 - 전체 리포트가 이 박스 안에 예쁘게 들어갑니다]
         st.markdown('<div class="prescription-medical-card">', unsafe_allow_html=True)
         
         # 처방전 헤더
