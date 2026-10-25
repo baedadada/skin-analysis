@@ -16,7 +16,7 @@ try:
 except Exception:
     HAS_OCR = False
 
-# 1. 엑셀(CSV) 파일에서 데이터 자동 로드
+# 1. 데이터 로드 (products.csv 및 ingredients.csv - 세미콜론 ; 구분 파싱 적용)
 @st.cache_data
 def load_data():
     products_df = pd.read_csv('products.csv')
@@ -29,14 +29,18 @@ def load_data():
             'name': str(row['name']),
             'category': str(row['category']),
             'keywords': [k.strip() for k in str(row['keywords']).split(',') if k.strip()],
-            'ingredients': [i.strip() for i in str(row['ingredients']).split(',') if i.strip()]
+            # ⭐ 세미콜론(;) 분리로 1,2-헥산다이올 등 성분명 깨짐 방지
+            'ingredients': [i.strip() for i in str(row['ingredients']).split(';') if i.strip()]
         })
         
     ing_info_dict = {}
     for _, row in ingredients_df.iterrows():
-        ing_info_dict[str(row['ingredient']).strip()] = {
-            'category': str(row['category']),
-            'info': str(row['info'])
+        ing_name = str(row['ingredient']).strip()
+        ing_info_dict[ing_name] = {
+            'category': str(row.get('category', '주요 성분')),
+            'purpose': str(row.get('purpose', '피부 케어 및 제형 유지')),
+            'benefits': str(row.get('benefits', '피부 상태 개선')),
+            'side_effects': str(row.get('side_effects', '개인 컨디션 및 체질에 따른 민감 자극 가능성'))
         }
         
     return products_list, ing_info_dict
@@ -64,7 +68,7 @@ def match_product_from_image(img_file):
     except Exception as e:
         return None, f"오류: {str(e)}"
 
-# 3. 페이지 설정 및 디자인 (모서리가 둥근 카드 스타일 CSS)
+# 3. 페이지 설정 및 디자인 (모서리가 둥근 처방전 카드 CSS)
 st.set_page_config(page_title="DermaSafe Rx | AI 피부 맞춤 처방전", page_icon="🩺", layout="wide")
 
 st.markdown("""
@@ -84,7 +88,7 @@ st.markdown("""
         box-shadow: 0 10px 15px -3px rgba(15, 44, 89, 0.2);
     }
     
-    /* 브랜드 카드 */
+    /* 서비스 특징 카드 */
     .feature-card {
         background: white;
         padding: 20px;
@@ -94,7 +98,7 @@ st.markdown("""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
     }
 
-    /* ⭐ 모서리가 둥근 팝업형 처방전 카드 스타일 */
+    /* ⭐ 모서리가 둥근 팝업형 처방전 카드 */
     .prescription-card {
         background-color: #FFFFFF;
         border: 2px solid #3B82F6;
@@ -105,37 +109,56 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* 구매 판정 배너 (위험/안전) */
+    /* 구매 판정 배너 */
     .verdict-badge-danger {
         background-color: #FEF2F2;
         color: #DC2626;
         border: 1px solid #FCA5A5;
-        padding: 12px 20px;
+        padding: 14px 20px;
         border-radius: 12px;
         font-weight: 700;
         font-size: 16px;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 24px;
     }
     .verdict-badge-safe {
         background-color: #F0FDF4;
         color: #16A34A;
         border: 1px solid #86EFAC;
-        padding: 12px 20px;
+        padding: 14px 20px;
         border-radius: 12px;
         font-weight: 700;
         font-size: 16px;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 24px;
     }
 
-    /* 성분 상세 박스 */
-    .ingredient-box {
+    /* ⭐ 성분 세부 분석 카드 (효능/주의점 대비) */
+    .ingredient-detail-card {
         background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 12px;
+        border: 1px solid #CBD5E1;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+    }
+    .ing-title {
+        color: #0F2C59;
+        font-size: 17px;
+        font-weight: 800;
+    }
+    .ing-badge {
+        background-color: #E0F2FE;
+        color: #0284C7;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        margin-left: 8px;
+    }
+    .ing-row {
+        margin-top: 8px;
+        font-size: 14px;
+        line-height: 1.6;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -144,18 +167,18 @@ st.markdown("""
 st.markdown("""
     <div class="hero-container">
         <h1 style="margin:0; font-size:30px; font-weight:800;">🩺 DermaSafe Rx</h1>
-        <p style="margin:8px 0 0 0; color:#93C5FD; font-size:15px;">개인 부작용 이력 기반 AI 피부 자극 예측 & 맞춤 처방 솔루션</p>
+        <p style="margin:8px 0 0 0; color:#93C5FD; font-size:15px;">올리브영 스킨케어 200 베스트셀러 기반 AI 피부 자극 예측 & 정밀 성분 처방 솔루션</p>
     </div>
 """, unsafe_allow_html=True)
 
 # 가치 전달 카드 3개
 col_f1, col_f2, col_f3 = st.columns(3)
 with col_f1:
-    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📸</div><b style="color:#0F2C59;">다중 스캔 OCR</b><br><span style="font-size:13px; color:#64748B;">과거 실패 제품 사진 자동 인식</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📸</div><b style="color:#0F2C59;">다중 스캔 OCR</b><br><span style="font-size:13px; color:#64748B;">스킨케어 200개 제품 자동 인식</span></div>""", unsafe_allow_html=True)
 with col_f2:
-    st.markdown("""<div class="feature-card"><div style="font-size:24px;">🔬</div><b style="color:#0F2C59;">성분 인과 진단</b><br><span style="font-size:13px; color:#64748B;">목적·효능·부작용 정밀 분석</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="feature-card"><div style="font-size:24px;">🔬</div><b style="color:#0F2C59;">성분 정밀 백과사전</b><br><span style="font-size:13px; color:#64748B;">목적·효능·주의점 1:1 매핑</span></div>""", unsafe_allow_html=True)
 with col_f3:
-    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📋</div><b style="color:#0F2C59;">디지털 처방전</b><br><span style="font-size:13px; color:#64748B;">구매 전 안전 여부 톡톡 판정</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="feature-card"><div style="font-size:24px;">📋</div><b style="color:#0F2C59;">디지털 처방전</b><br><span style="font-size:13px; color:#64748B;">구매 전 안심 여부 즉시 판정</span></div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -165,7 +188,7 @@ auto_detected_products = []
 
 with left_col:
     st.subheader("📸 1. 화장품 이미지 등록")
-    st.caption("과거 자극을 주었던 제품의 사진을 업로드해 주세요.")
+    st.caption("과거 피부에 자극을 주었던 스킨케어 제품 사진을 업로드해 주세요.")
     
     tab1, tab2 = st.tabs(["🖼️ 파일 다중 업로드", "📷 실시간 카메라"])
     with tab1:
@@ -192,19 +215,19 @@ with left_col:
 
 with right_col:
     st.subheader("⚠️ 2. 진단 조건 설정")
-    st.caption("부작용 이력과 검토 중인 새 제품을 지정하세요.")
+    st.caption("과거 부작용 증상과 검토 중인 새 스킨케어 제품을 지정하세요.")
     
     product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
     default_selected = [p for p in auto_detected_products if p in product_dict]
 
     selected_problem_names = st.multiselect("과거 트러블 유발 제품:", options=list(product_dict.keys()), default=default_selected)
-    selected_symptoms = st.multiselect("📌 과거 겪은 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'])
+    selected_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'])
     selected_new_name = st.selectbox("🛒 구매 검토 중인 새 제품:", options=list(product_dict.keys()))
 
     st.markdown("<br>", unsafe_allow_html=True)
-    analysis_triggered = st.button("🩺 DermaSafe Rx 맞춤 처방전 발급받기", type="primary", use_container_width=True)
+    analysis_triggered = st.button("🩺 DermaSafe Rx 정밀 처방전 발급받기", type="primary", use_container_width=True)
 
-# 📊 둥근 카드형 처방전 리포트 출력
+# 📊 정밀 처방전 카드 출력
 if analysis_triggered:
     if not selected_problem_names:
         st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 선택해 주세요!")
@@ -221,52 +244,57 @@ if analysis_triggered:
 
         st.markdown("---")
         
-        # ⭐ 모서리가 둥근 팝업형 처방전 카드 시작
+        # 둥근 팝업형 처방전 카드 시작
         st.markdown('<div class="prescription-card">', unsafe_allow_html=True)
         
         st.markdown("<h2 style='color:#0F2C59; margin-top:0;'>📋 DERMASAFE PRESCRIPTION REPORT</h2>", unsafe_allow_html=True)
-        st.caption(f"비교 대상 새 제품: **{selected_new_name}** | 등록된 증상: **{', '.join(selected_symptoms) if selected_symptoms else '없음'}**")
+        st.caption(f"검토 제품: **{selected_new_name}** | 호소 증상: **{', '.join(selected_symptoms) if selected_symptoms else '없음'}**")
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # 🚨 새 제품 사도 되는지 여부 판정 배너
+        # 🚨 구매 판정 배너
         if matched:
             st.markdown(
-                '<div class="verdict-badge-danger">🚨 [구매 보류 권장] 과거 자극 성분과 겹칩니다. 신중한 검토가 필요합니다!</div>',
+                '<div class="verdict-badge-danger">🚨 [구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다. 테스트 후 접근을 권합니다.</div>',
                 unsafe_allow_html=True
             )
         else:
             st.markdown(
-                '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 없어 안심하고 검토하셔도 좋습니다.</div>',
+                '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 포함되어 있지 않아 비교적 안심하고 사용 가능합니다.</div>',
                 unsafe_allow_html=True
             )
 
-        # 성분 상세 분석 영역 (목적, 효능, 부작용 포함)
+        # 🔬 공통 성분별 [목적 / 효능 / 주의점] 정밀 분석 리스트
         if matched:
-            st.markdown("#### 🔬 공통 감지 성분 및 상세 프로필 (목적·효능·부작용)")
+            st.markdown("#### 🔬 감지된 공통 성분별 정밀 분석 (효능 및 주의점)")
             for ing in matched:
-                info = INGREDIENT_INFO.get(ing, {"category": "기능성 성분", "info": "과거 부작용 유발 제품에 공통으로 포함된 성분입니다."})
+                info = INGREDIENT_INFO.get(ing, {
+                    'category': '기능성 성분',
+                    'purpose': '피부 케어 및 제형 유지',
+                    'benefits': '피부 유효 성분 전달',
+                    'side_effects': '⚠️ 개인 컨디션 및 체질에 따른 민감 자극 가능성'
+                })
                 
                 st.markdown(f"""
-                    <div class="ingredient-box">
-                        <b style="color:#1E3A8A; font-size:16px;">🧪 {ing}</b> <span style="background:#E2E8F0; padding:2px 8px; border-radius:6px; font-size:12px;">{info['category']}</span><br>
-                        <hr style="margin:8px 0; border:0; border-top:1px solid #CBD5E1;">
-                        <b>• 성분 목적 및 효능:</b> {info['info']}<br>
-                        <b>• 잠재적 피부 반응 (부작용 가능성):</b> 과거 유사 성분이 포함된 제품 사용 시 <i>{', '.join(selected_symptoms) if selected_symptoms else '따가움 또는 트러블'}</i> 반응과 연관되었을 수 있으니 주의가 필요합니다.
+                    <div class="ingredient-detail-card">
+                        <div><span class="ing-title">🧪 {ing}</span> <span class="ing-badge">{info['category']}</span></div>
+                        <div class="ing-row">🎯 <b>배합 목적:</b> {info['purpose']}</div>
+                        <div class="ing-row" style="color: #047857;">✨ <b>주요 효능:</b> {info['benefits']}</div>
+                        <div class="ing-row" style="color: #B91C1C; font-weight: 600;">⚠️ <b>주의점 및 부작용:</b> {info['side_effects']}</div>
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("💡 새 제품에는 과거 자극을 유발했던 성분과의 공통 교집합이 발견되지 않았습니다. 단, 개인별 피부 컨디션에 따라 다를 수 있습니다.")
+            st.info("💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.")
 
         # 마일드 처방 가이드
         st.markdown("---")
         st.markdown("#### 🌿 세이프가드 마일드 케어 처방 가이드")
         st.markdown(
-            "1. **사용 조율:** 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.\n"
+            "1. **부드러운 휴식 권장:** 피부에 일시적인 불편함이나 자극이 느껴지신다면, 의심되는 제품의 사용을 잠시 멈추고 피부가 숨을 고를 수 있도록 여유를 주시는 것을 권해드립니다.\n"
             "2. **진정 중심 루틴:** 장벽이 편안해질 때까지 자극적인 기능성 제품을 피하고 순한 보습 위주로 케어해 보세요.\n"
             "3. **전문가 상담:** 불편함이 가라앉지 않고 지속될 경우 피부과 전문의와 정밀한 상담을 받아보시는 것을 조심스럽게 권장합니다."
         )
         
-        st.markdown('</div>', unsafe_allow_html=True) # 둥근 카드 닫기
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # 세션 저장
         st.session_state['last_analysis'] = {
@@ -290,7 +318,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if user_input := st.chat_input("예: 이 성분 빼고 대체할 만한 스킨케어 성분 추천해줘"):
+if user_input := st.chat_input("예: 이 성분 대신 쓸 수 있는 자극 없는 성분 추천해줘"):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
