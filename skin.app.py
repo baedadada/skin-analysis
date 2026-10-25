@@ -204,48 +204,45 @@ with main_tab1:
             else:
                 st.warning("촬영된 이미지에서 제품을 인식하지 못했습니다.")
 
-    # 카메라 탭 내부의 하단 입력 요소 (문제 상품 선택만 제외)
+    # 카메라 탭 내부 (단일 컬럼으로 아래로 떨어지게 배치)
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("##### 📋 진단 세부 조건 입력")
-    c_col1, c_col2 = st.columns(2, gap="medium")
-    with c_col1:
-        cam_symptoms = st.multiselect(
-            "📌 과거 경험한 주요 증상:",
-            options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
-            key="cam_sym"
-        )
-    with c_col2:
-        cam_new_name = st.selectbox(
-            "🛒 구매 검토 중인 새 제품 선택:",
-            options=list(product_dict.keys()),
-            key="cam_new"
-        )
+    cam_symptoms = st.multiselect(
+        "📌 과거 경험한 주요 증상:",
+        options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
+        key="cam_sym"
+    )
+    cam_new_name = st.selectbox(
+        "🛒 구매 검토 중인 새 제품 선택:",
+        options=list(product_dict.keys()),
+        key="cam_new"
+    )
     
     st.markdown("<br>", unsafe_allow_html=True)
-    cam_triggered = st.button("🩺 정밀 처방전 카드 발급받기 (카메라 탭)", type="primary", use_container_width=True, key="btn_cam")
+    cam_triggered = st.button("🩺 정밀 처방전 카드 발급받기", type="primary", use_container_width=True, key="btn_cam")
 
 with main_tab2:
     st.markdown("##### 📝 데이터베이스 목록에서 문제 제품과 새 제품을 직접 지정합니다.")
-    d_col1, d_col2 = st.columns(2, gap="medium")
-    with d_col1:
-        dir_problem_names = st.multiselect(
-            "⚠️ 과거 트러블 유발 제품 선택:",
-            options=list(product_dict.keys()),
-            key="dir_prob"
-        )
-        dir_symptoms = st.multiselect(
-            "📌 과거 경험한 주요 증상:",
-            options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
-            key="dir_sym"
-        )
-    with d_col2:
-        dir_new_name = st.selectbox(
-            "🛒 구매 검토 중인 새 제품 선택:",
-            options=list(product_dict.keys()),
-            key="dir_new"
-        )
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        dir_triggered = st.button("🩺 정밀 처방전 카드 발급받기 (목록 선택)", type="primary", use_container_width=True, key="btn_dir")
+    
+    # 💡 좌우 분할을 없애고 전체 너비로 세로 정렬되도록 수정
+    dir_problem_names = st.multiselect(
+        "⚠️ 과거 트러블 유발 제품 선택:",
+        options=list(product_dict.keys()),
+        key="dir_prob"
+    )
+    dir_symptoms = st.multiselect(
+        "📌 과거 경험한 주요 증상:",
+        options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
+        key="dir_sym"
+    )
+    dir_new_name = st.selectbox(
+        "🛒 구매 검토 중인 새 제품 선택:",
+        options=list(product_dict.keys()),
+        key="dir_new"
+    )
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    dir_triggered = st.button("🩺 정밀 처방전 카드 발급받기", type="primary", use_container_width=True, key="btn_dir")
 
 # 어떤 버튼이 눌렸는지에 따라 분석 실행
 analysis_triggered = cam_triggered or (main_tab2 and 'dir_triggered' in locals() and dir_triggered)
