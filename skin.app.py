@@ -184,13 +184,18 @@ st.markdown("""
 # 공통 제품 딕셔너리
 product_dict = {f"[{p['category']}] {p['name']}": p['id'] for p in products}
 
-# 🎛️ 상단 탭: [1. 카메라/사진 등록] vs [2. 목록에서 직접 선택]
+# 🎛️ 상단 탭: [1. 카메라/사진 등록] vs [2. 목록에서 직접 선택] vs [3. 화장품 뒷면 전성분 라벨 스캔 (New!)]
 st.subheader("🔍 피부 진단 조건 설정")
 st.caption("원하시는 방식을 선택하여 제품을 지정해 주세요.")
 
-main_tab1, main_tab2 = st.tabs(["📸 1. 카메라/사진으로 제품 등록", "🛒 2. 목록에서 직접 선택"])
+main_tab1, main_tab2, main_tab3 = st.tabs([
+    "📸 1. 제품 사진/카메라 등록", 
+    "🛒 2. 목록에서 직접 선택", 
+    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (AI Vision)"
+])
 
 detected_from_cam = None
+vision_extracted_ingredients = None
 
 with main_tab1:
     st.markdown("##### 🖼️ 과거 자극을 주었던 제품의 사진을 업로드하거나 촬영해 주세요.")
@@ -255,36 +260,100 @@ with main_tab2:
     st.markdown("<br>", unsafe_allow_html=True)
     dir_triggered = st.button("🩺 정밀 처방전 카드 발급받기", type="primary", use_container_width=True, key="btn_dir")
 
-# 어떤 버튼이 눌렸는지에 따라 분석 실행
-analysis_triggered = cam_triggered or (main_tab2 and 'dir_triggered' in locals() and dir_triggered)
+with main_tab3:
+    st.markdown("##### 🏷️ 데이터베이스에 없는 신제품도 화장품 뒷면 '전성분 표기 라벨'을 찍어 올리면 AI가 즉시 분석합니다!")
+    vision_file = st.file_uploader("화장품 뒷면 전성분 라벨 사진 업로드", type=["jpg", "jpeg", "png"], key="vision_uploader")
+    
+    v_col1, v_col2 = st.columns(2, gap="medium")
+    with v_col1:
+        vision_problem_names = st.multiselect(
+            "⚠️ 과거 트러블 유발 제품 선택:",
+            options=list(product_dict.keys()),
+            key="vision_prob"
+        )
+        vision_symptoms = st.multiselect(
+            "📌 과거 경험한 주요 증상:",
+            options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'],
+            key="vision_sym"
+        )
+    with v_col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        vision_triggered = st.button("✨ AI 멀티모달 비전 라벨 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
 
-if cam_triggered:
+# 어떤 탭이 실행되었는지 판정
+is_cam = cam_triggered
+is_dir = 'dir_triggered' in locals() and dir_triggered
+is_vision = 'vision_triggered' in locals() and vision_triggered
+
+analysis_triggered = is_cam or is_dir or is_vision
+
+if is_cam:
     used_problem_names = [detected_from_cam] if detected_from_cam and detected_from_cam in product_dict else []
     used_symptoms = cam_symptoms
     used_new_name = cam_new_name
-elif 'dir_triggered' in locals() and dir_triggered:
+    analysis_mode = "db"
+elif is_dir:
     used_problem_names = dir_problem_names
     used_symptoms = dir_symptoms
     used_new_name = dir_new_name
+    analysis_mode = "db"
+elif is_vision:
+    used_problem_names = vision_problem_names
+    used_symptoms = vision_symptoms
+    used_new_name = "AI 비전 라벨 스캔 제품 (신규)"
+    analysis_mode = "vision"
 else:
     analysis_triggered = False
 
 # 📋 진단서 / 처방전 카드 형태 출력
 if analysis_triggered:
-    if cam_triggered and not detected_from_cam:
-        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식 실패 시 '목록에서 직접 선택' 탭을 이용해 주세요)")
-    elif not cam_triggered and not used_problem_names:
+    if is_cam and not detected_from_cam:
+        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요!")
+    elif (is_dir or is_vision) and not used_problem_names:
         st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 지정해 주세요!")
+    elif is_vision and not vision_file:
+        st.error("분석할 화장품 뒷면 전성분 라벨 사진을 업로드해 주세요!")
     else:
+        # 성분 교집합 분석 로직
         problem_ids = [product_dict[name] for name in used_problem_names]
-        new_id = product_dict[used_new_name]
-
         problem_ings = [set(p['ingredients']) - COMMON_INGREDIENTS for p in products if p['id'] in problem_ids]
         all_ings = [ing for sub in problem_ings for ing in sub]
-        
         caution_ings = set(all_ings) if len(problem_ids) == 1 else {ing for ing in set(all_ings) if all_ings.count(ing) >= 2} or set(all_ings)
-        new_product_ings = set(next(p for p in products if p['id'] == new_id)['ingredients'])
-        matched = new_product_ings.intersection(caution_ings)
+
+        if analysis_mode == "db":
+            new_id = product_dict[used_new_name]
+            new_product_ings = set(next(p for p in products if p['id'] == new_id)['ingredients'])
+            matched = new_product_ings.intersection(caution_ings)
+            scanned_ingredients_text = "기존 데이터베이스 매칭 완료"
+        else:
+            # Gemini Vision API를 이용한 전성분 라벨 분석
+            with st.spinner("🤖 Gemini AI 비전 모델이 전성분 라벨을 스캔하고 위험 성분을 대조 중입니다..."):
+                try:
+                    api_key = st.secrets.get("GEMINI_API_KEY", None)
+                    if not api_key:
+                        st.error("⚠️ API Key가 필요합니다.")
+                        st.stop()
+                    genai.configure(api_key=api_key)
+                    vision_model = genai.GenerativeModel('gemini-3.8-flash')
+                    
+                    img = Image.open(vision_file)
+                    prompt = (
+                        "너는 전문 화장품 성분 분석가야. 업로드된 화장품 뒷면 전성분 표기 라벨 사진을 읽고, "
+                        "포함된 모든 화장품 성분 이름을 쉼표(,)로 구분해서 나열해 줘. "
+                        "오직 성분 이름들만 텍스트로 출력해."
+                    )
+                    response = vision_model.generate_content([prompt, img])
+                    extracted_text = response.text
+                    
+                    # 추출된 성분 파싱
+                    extracted_list = [s.strip() for s in extracted_text.replace('\n', ',').split(',') if s.strip()]
+                    scanned_ingredients_text = ", ".join(extracted_list[:15]) + (" 외 다수" if len(extracted_list) > 15 else "")
+                    
+                    new_product_ings = set(extracted_list)
+                    matched = new_product_ings.intersection(caution_ings)
+                except Exception as e:
+                    st.error(f"비전 분석 중 오류 발생: {str(e)}")
+                    st.stop()
 
         st.markdown("---")
         
@@ -292,17 +361,20 @@ if analysis_triggered:
         
         if matched:
             verdict_html = '<div class="verdict-badge-danger">🚨 [구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다. 패치 테스트 후 사용을 권합니다.</div>'
+            verdict_text = "[구매 신중 권장] 과거 자극 경험 성분과 교집합이 확인되었습니다."
         else:
             verdict_html = '<div class="verdict-badge-safe">✨ [구매 적합 판정] 과거 부작용 유발 성분이 포함되어 있지 않아 비교적 안심하고 사용 가능합니다.</div>'
+            verdict_text = "[구매 적합 판정] 과거 부작용 유발 성분이 포함되어 있지 않습니다."
 
         ingredients_html = ""
+        ingredients_text_list = []
         if matched:
             ingredients_html += "<h4 style='color:#0F2C59; margin-top:15px;'>🔬 감지된 공통 성분별 정밀 분석 리포트</h4>"
             for ing in matched:
                 info = INGREDIENT_INFO.get(ing, {
                     'category': '기능성 성분',
                     'purpose': '피부 케어 및 제형 유지',
-                    'benefits': '피부 유효 성분 전달',
+                    'benefits': '피부 상태 개선',
                     'side_effects': '⚠️ 개인 컨디션 및 체질에 따른 민감 자극 가능성'
                 })
                 ingredients_html += (
@@ -313,8 +385,19 @@ if analysis_triggered:
                     f'<div class="ing-row" style="color: #B91C1C; font-weight: 600;">⚠️ <b>주의점 및 부작용:</b> {info["side_effects"]}</div>'
                     f'</div>'
                 )
+                ingredients_text_list.append(f"- {ing} ({info['category']}): 목적({info['purpose']}) / 주의점({info['side_effects']})")
         else:
             ingredients_html += "<p style='color:#64748B;'>💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.</p>"
+
+        # 💡 [맞춤형 대체 성분/제품 추천 솔루션 추가]
+        alternative_html = ""
+        if matched:
+            alternative_html = (
+                '<div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 18px 20px; margin-top: 20px; font-size: 14px; color: #1E3A8A; line-height: 1.6;">'
+                '<b style="color: #1D4ED8; font-size: 15px;">💡 AI 맞춤형 대체 성분 & 케어 솔루션</b><br><br>'
+                f'위험 성분으로 감지된 <b>{", ".join(matched)}</b> 성분 대신, 피부 진정과 보습에 도움을 주는 <b>판테놀, 알란토인, 히알루론산</b> 등이 함유된 순한 대체 제품군(예: 시카 밤, 무향 진정 토너)을 선택하시는 것을 추천해 드립니다.'
+                '</div>'
+            )
 
         guide_html = (
             '<div class="guide-box">'
@@ -332,14 +415,46 @@ if analysis_triggered:
             f'<p style="color:#64748B; margin:4px 0 0 0; font-size:13px;">발급 기관: AI Clinical Preventive Skin Safeguard System</p>'
             f'</div>'
             f'<p style="margin:5px 0;"><b>검토 대상 제품:</b> {used_new_name}</p>'
-            f'<p style="margin:5px 0 0 0;"><b>호소 이력 증상:</b> {symptoms_str}</p><br>'
+            f'<p style="margin:5px 0 0 0;"><b>호소 이력 증상:</b> {symptoms_str}</p>'
+            f'<p style="margin:5px 0 0 0; color:#475569; font-size:13px;"><b>전성분 분석 정보:</b> {scanned_ingredients_text}</p><br>'
             f'{verdict_html}'
             f'{ingredients_html}'
+            f'{alternative_html}'
             f'{guide_html}'
             f'</div>'
         )
         
         st.markdown(final_card_html, unsafe_allow_html=True)
+
+        # 📄 처방전 다운로드 버튼
+        st.markdown("<br>", unsafe_allow_html=True)
+        report_txt = f"""==================================================
+ [DERMASAFE Rx] MEDICAL SKIN PRESCRIPTION REPORT
+==================================================
+- 발급 기관: AI Clinical Preventive Skin Safeguard System
+- 검토 대상 제품: {used_new_name}
+- 호소 이력 증상: {symptoms_str}
+- 구매 판정 결과: {verdict_text}
+
+[감지된 주의 성분 분석]
+{"\n".join(ingredients_text_list) if ingredients_text_list else "감지된 위험 성분 없음 (안심 사용 가능)"}
+
+[AI 맞춤형 대체 성분 추천 가이드]
+- 자극 성분 회피 및 판테놀, 알란토인, 히알루론산 중심의 순한 진정/보습 제품 선택 권장
+
+[세이프가드 마일드 케어 가이드]
+1. 부드러운 휴식 권장: 의심되는 제품 사용 중단 및 피부 휴식
+2. 진정 중심 루틴: 자극적인 기능성 제품 피하고 순한 보습 케어
+3. 전문가 상담: 지속적인 불편함 시 피부과 전문의 상담 권장
+=================================================="""
+
+        st.download_button(
+            label="📥 메디컬 처방전 리포트 문서 다운로드 (TXT)",
+            data=report_txt,
+            file_name="DermaSafe_Rx_Prescription_Report.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
 
         st.session_state['last_analysis'] = {
             "problem_products": used_problem_names,
