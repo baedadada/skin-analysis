@@ -141,7 +141,7 @@ with main_tab3:
         vision_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="vision_sym")
     with v_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        vision_triggered = st.button("✨ AI 멀티모달 비전 라벨 고속 분석", type="primary", use_container_width=True, key="btn_vision")
+        vision_triggered = st.button("✨ AI 멀티모달 비전 라벨 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
 
 is_cam = cam_triggered
 is_dir = 'dir_triggered' in locals() and dir_triggered
@@ -186,37 +186,17 @@ if analysis_triggered:
             matched = new_product_ings.intersection(caution_ings)
             scanned_ingredients_text = "기존 데이터베이스 매칭 완료"
         else:
-            # 🚀 [속도 극대화 최적화] 이미지 크기를 더 줄이고(500px), 한 번의 API 호출로 전성분 추출과 맞춤 처방을 동시에 끝냄!
-            with st.spinner("🤖 AI 비전 모델이 전성분 라벨을 초고속 분석 중입니다..."):
+            with st.spinner("🤖 AI가 전성분 라벨을 고속 스캔 및 대조 중입니다..."):
                 try:
                     api_key = st.secrets.get("GEMINI_API_KEY", None)
                     genai.configure(api_key=api_key)
-                    # 가장 가볍고 빠른 경량 프롬프트 처리
                     vision_model = genai.GenerativeModel('gemini-3.8-flash')
-                    
                     img = Image.open(vision_file)
-                    img.thumbnail((500, 500))  # 이미지 용량을 극단적으로 줄여 전송 속도 향상
-                    
-                    prompt = (
-                        "화장품 뒷면 전성분 라벨 사진입니다.\n"
-                        "1. 포함된 성분 이름들을 쉼표(,)로 구분해서 나열해 줘.\n"
-                        "2. 그리고 위험 성분이 있을 때 추천할 피부 진정/보습 대체 성분 가이드를 한 문장으로 같이 적어줘.\n"
-                        "출력 형식: 성분1,성분2,성분3... | [대체처방문구]"
-                    )
+                    img.thumbnail((800, 800))
+                    prompt = "화장품 뒷면 전성분 라벨 사진입니다. 포함된 성분 이름들을 쉼표(,)로 구분해서 나열해 줘."
                     response = vision_model.generate_content([prompt, img])
-                    res_text = response.text.strip()
-                    
-                    if "|" in res_text:
-                        parts = res_text.split("|")
-                        raw_ing_part = parts[0]
-                        ai_rx_text = parts[1].strip()
-                    else:
-                        raw_ing_part = res_text
-                        ai_rx_text = "자극 성분을 피하고 피부 장벽 보호에 특화된 순한 보습 진정 성분군으로 대체할 것을 처방합니다."
-                        
-                    extracted_list = [s.strip() for s in raw_ing_part.replace('\n', ',').split(',') if s.strip()]
-                    scanned_ingredients_text = ", ".join(extracted_list[:12]) + (" 외 다수" if len(extracted_list) > 12 else "")
-                    
+                    extracted_list = [s.strip() for s in response.text.replace('\n', ',').split(',') if s.strip()]
+                    scanned_ingredients_text = ", ".join(extracted_list[:15]) + (" 외 다수" if len(extracted_list) > 15 else "")
                     new_product_ings = set(extracted_list)
                     matched = new_product_ings.intersection(caution_ings)
                 except Exception as e:
@@ -241,7 +221,7 @@ if analysis_triggered:
                 info = INGREDIENT_INFO.get(ing, {
                     'category': '기능성 성분',
                     'purpose': '피부 케어 및 제형 유지',
-                    'benefits': '피부 유효 성분 전달',
+                    'benefits': '피부 상태 개선',
                     'side_effects': '⚠️ 개인 컨디션 및 체질에 따른 민감 자극 가능성'
                 })
                 ingredients_html += (
@@ -256,14 +236,25 @@ if analysis_triggered:
         else:
             ingredients_html += "<p style='color:#64748B;'>💡 과거 자극 유발 제품의 주요 성분이 새 제품에서 발견되지 않았습니다.</p>"
 
-        # DB 모드일 때의 동적 대체 처방 생성 (1번만 호출되도록 최적화)
-        if analysis_mode == "db" and matched:
-            ai_rx_text = f"감지된 {list(matched)} 성분 대신, 피부 장벽을 보호하는 순한 진정/보습 성분군(세라마이드, 판테놀 등)으로 대체하시는 것을 권장합니다."
-        elif analysis_mode == "db":
-            ai_rx_text = "위험 성분이 발견되지 않아 기존 보습 루틴을 유지하셔도 좋습니다."
-
+        # 🚀 [업데이트 포인트] 고정된 문구가 아니라, 감지된 성분(matched)에 맞춰 Gemini AI가 실시간으로 전혀 다른 맞춤형 대체 성분을 지어내도록 수정!
         alternative_html = ""
         if matched:
+            with st.spinner("🤖 AI 피부 코디네이터가 감지된 성분에 맞는 실시간 맞춤 대체 처방을 생성 중입니다..."):
+                try:
+                    api_key = st.secrets.get("GEMINI_API_KEY", None)
+                    genai.configure(api_key=api_key)
+                    rx_model = genai.GenerativeModel('gemini-3.8-flash')
+                    rx_prompt = (
+                        "너는 전문 피부과 AI 처방사야.\n"
+                        f"사용자가 자극을 느낀 위험 성분 목록: {list(matched)}\n"
+                        f"사용자가 호소한 증상: {symptoms_str}\n\n"
+                        "위 성분들이 자극을 유발한 원인일 때, 이 성분들을 확실히 피하면서 감당할 수 있는 **완전히 새로운 2~3가지 대체 성분과 그 이유**를 2~3문장의 정중하고 전문적인 피부과 처방 구어체로 작성해 줘. (판테놀, 알란토인, 히알루론산 같은 뻔한 답변만 반복하지 말고 감지된 성분의 특성에 맞춰 다채롭게 작성해)"
+                    )
+                    rx_response = rx_model.generate_content(rx_prompt)
+                    ai_rx_text = rx_response.text
+                except Exception:
+                    ai_rx_text = "자극 성분을 피하고 피부 장벽 보호 및 진정에 특화된 순한 마일드 보습 성분군으로 대체할 것을 처방합니다."
+
             alternative_html = (
                 f'<div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 18px 20px; margin-top: 20px; font-size: 14px; color: #1E3A8A; line-height: 1.6;">'
                 f'<b style="color: #1D4ED8; font-size: 15px;">💡 AI 실시간 맞춤형 대체 처방 솔루션</b><br><br>'
@@ -352,7 +343,7 @@ if user_input := st.chat_input("질문을 입력하세요"):
                 genai.configure(api_key=api_key)
                 model = genai.GenerativeModel('gemini-3.8-flash')
                 last_data = st.session_state.get('last_analysis', {})
-                prompt = f"피부과 AI 코디네이터로서 짧고 명확하게 답변해 줘. 겹치는 성분: {last_data.get('matched_ingredients', '없음')}, 질문: {user_input}"
+                prompt = f"피부과 AI 코디네이터로서 답변해 줘. 겹치는 성분: {last_data.get('matched_ingredients', '없음')}, 질문: {user_input}"
                 response = model.generate_content(prompt)
                 ai_response = response.text
             except Exception as e:
