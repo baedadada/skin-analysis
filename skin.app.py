@@ -20,6 +20,11 @@ except Exception:
     HAS_OCR = False
 
 class EnhancedOCRProcessor:
+    """
+    [OCR 성능 개선 모듈]
+    화장품 용기의 곡면 빛반사, 미세 폰트, 노이즈를 억제하고 
+    표준 라이브러리(difflib)를 통해 오탈자 및 표기 차이를 자동 보정하는 클래스
+    """
     def __init__(self):
         pass
         
@@ -32,17 +37,21 @@ class EnhancedOCRProcessor:
             else:
                 gray = img
             
-            # 가벼운 노이즈 제거 및 대비 강화
-            denoised = cv2.bilateralFilter(gray, 9, 15, 15)
+            # 1. Bilateral Filter (엣지 보존하며 노이즈 및 요철 제거)
+            denoised = cv2.bilateralFilter(gray, 11, 17, 17)
+            
+            # 2. CLAHE (곡면 용기의 불균일한 조명 및 빛반사 제거, 텍스트 대비 극대화)
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             contrast_img = clahe.apply(denoised)
+            
+            # 3. Otsu's Thresholding (이진화로 텍스트와 배경 선명 분리)
             _, thresh = cv2.threshold(contrast_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             return thresh
         except Exception:
             image = Image.open(image_file)
             return np.array(image)
 
-    def extract_and_match(self, image_file, official_db_list, cutoff=0.5):
+    def extract_and_match(self, image_file, official_db_list, cutoff=0.6):
         if not HAS_OCR:
             return [], "OCR 라이브러리가 로드되지 않았습니다."
         
@@ -55,6 +64,7 @@ class EnhancedOCRProcessor:
             if len(cleaned) > 1:
                 extracted_ingredients.append(cleaned)
                 
+        # 파이썬 내장 difflib을 통한 표준 DB 자동 보정 매핑 (추가 패키지 불필요)
         matched_results = set()
         for item in extracted_ingredients:
             matches = get_close_matches(item, official_db_list, n=1, cutoff=cutoff)
@@ -96,12 +106,10 @@ def load_data():
 
 products, INGREDIENT_INFO = load_data()
 COMMON_INGREDIENTS = {"정제수", "글리세린", "부틸렌글라이콜", "1,2-헥산다이올"}
+
 all_official_ingredients = list(INGREDIENT_INFO.keys())
 
 def match_product_from_image(img_file):
-    """
-    초고속 로컬 OCR 키워드 매칭 (지연 시간 없음)
-    """
     if not HAS_OCR:
         return None, "OCR 라이브러리가 로드되지 않았습니다."
     try:
@@ -153,7 +161,7 @@ st.caption("원하시는 방식을 선택하여 제품을 지정해 주세요.")
 main_tab1, main_tab2, main_tab3 = st.tabs([
     "📸 1. 제품 사진/카메라 등록", 
     "🛒 2. 목록에서 직접 선택", 
-    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (고속 OCR)"
+    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (AI Vision + 고급 OCR)"
 ])
 
 detected_from_cam = None
@@ -168,8 +176,6 @@ with main_tab1:
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
-            else:
-                st.warning("⚠️ 인식 실패 시 2번 탭(목록에서 직접 선택)을 이용하시면 발표 시연이 훨씬 매끄럽습니다!")
     with cam_sub2:
         cap_img = st.camera_input("제품 정면 촬영", key="camera_cam")
         if cap_img:
@@ -177,8 +183,6 @@ with main_tab1:
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
-            else:
-                st.warning("⚠️ 인식 실패 시 2번 탭을 이용해 주세요.")
 
     cam_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="cam_sym")
     cam_new_name = st.selectbox("🛒 구매 검토 중인 새 제품 선택:", options=list(product_dict.keys()), key="cam_new")
@@ -198,7 +202,7 @@ with main_tab3:
         vision_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="vision_sym")
     with v_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        vision_triggered = st.button("✨ 고속 라벨 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
+        vision_triggered = st.button("✨ 고급 OCR + AI 멀티모달 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
 
 is_cam = cam_triggered
 is_dir = 'dir_triggered' in locals() and dir_triggered
@@ -219,14 +223,14 @@ elif is_dir:
 elif is_vision:
     used_problem_names = vision_problem_names
     used_symptoms = vision_symptoms
-    used_new_name = "라벨 스캔 제품 (신규)"
+    used_new_name = "고급 OCR & AI 스캔 제품 (신규)"
     analysis_mode = "vision"
 else:
     analysis_triggered = False
 
 if analysis_triggered:
     if is_cam and not detected_from_cam:
-        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식이 안 될 경우 2번 목록에서 직접 선택 탭을 사용하시면 즉시 진행 가능합니다)")
+        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요!")
     elif (is_dir or is_vision) and not used_problem_names:
         st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 지정해 주세요!")
     elif is_vision and not vision_file:
@@ -243,10 +247,20 @@ if analysis_triggered:
             matched = new_product_ings.intersection(caution_ings)
             scanned_ingredients_text = "기존 데이터베이스 매칭 완료"
         else:
-            with st.spinner("⚡ 고속 OCR 스캔 중..."):
+            with st.spinner("🔍 고급 OCR 전처리 및 AI 비전 분석을 동시에 수행 중입니다..."):
                 try:
                     ocr_matched_ings, scanned_ingredients_text = ocr_processor.extract_and_match(vision_file, all_official_ingredients)
-                    new_product_ings = set(ocr_matched_ings)
+                    
+                    api_key = st.secrets.get("GEMINI_API_KEY", None)
+                    genai.configure(api_key=api_key)
+                    vision_model = genai.GenerativeModel('gemini-3.8-flash')
+                    img = Image.open(vision_file)
+                    img.thumbnail((800, 800))
+                    prompt = "화장품 뒷면 전성분 라벨 사진입니다. 포함된 주요 성분 이름들을 쉼표(,)로 구분해서 나열해 줘."
+                    response = vision_model.generate_content([prompt, img])
+                    ai_extracted = [s.strip() for s in response.text.replace('\n', ',').split(',') if s.strip()]
+                    
+                    new_product_ings = set(ocr_matched_ings).union(set(ai_extracted))
                     matched = new_product_ings.intersection(caution_ings)
                 except Exception as e:
                     st.error(f"분석 중 오류 발생: {str(e)}")
@@ -287,7 +301,7 @@ if analysis_triggered:
 
         alternative_html = ""
         if matched:
-            with st.spinner("🤖 AI 맞춤 처방 생성 중..."):
+            with st.spinner("🤖 AI 피부 코디네이터가 감지된 성분에 맞는 실시간 맞춤 대체 처방을 생성 중입니다..."):
                 try:
                     api_key = st.secrets.get("GEMINI_API_KEY", None)
                     genai.configure(api_key=api_key)
