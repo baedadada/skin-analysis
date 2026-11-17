@@ -32,7 +32,8 @@ class EnhancedOCRProcessor:
             else:
                 gray = img
             
-            denoised = cv2.bilateralFilter(gray, 11, 17, 17)
+            # 가벼운 노이즈 제거 및 대비 강화
+            denoised = cv2.bilateralFilter(gray, 9, 15, 15)
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             contrast_img = clahe.apply(denoised)
             _, thresh = cv2.threshold(contrast_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -41,7 +42,7 @@ class EnhancedOCRProcessor:
             image = Image.open(image_file)
             return np.array(image)
 
-    def extract_and_match(self, image_file, official_db_list, cutoff=0.6):
+    def extract_and_match(self, image_file, official_db_list, cutoff=0.5):
         if not HAS_OCR:
             return [], "OCR 라이브러리가 로드되지 않았습니다."
         
@@ -99,44 +100,23 @@ all_official_ingredients = list(INGREDIENT_INFO.keys())
 
 def match_product_from_image(img_file):
     """
-    [핵심 개선] 기존의 단순 문자열 키워드 비교 대신, 
-    Gemini 멀티모달 비전 모델을 사용하여 업로드된 제품 이미지의 브랜드명과 제품명을 
-    정확하게 판독하고 products 리스트와 매칭합니다.
+    초고속 로컬 OCR 키워드 매칭 (지연 시간 없음)
     """
+    if not HAS_OCR:
+        return None, "OCR 라이브러리가 로드되지 않았습니다."
     try:
-        api_key = st.secrets.get("GEMINI_API_KEY", None)
-        genai.configure(api_key=api_key)
-        vision_model = genai.GenerativeModel('gemini-3.8-flash')
-        
-        img = Image.open(img_file)
-        img.thumbnail((800, 800))
-        
-        product_names_list = [f"[{p['category']}] {p['name']}" for p in products]
-        prompt = (
-            "이 화장품 용기/제품 사진을 보고, 다음 보기 목록 중에서 가장 일치하는 제품 하나를 정확히 골라줘.\n"
-            f"보기 목록: {product_names_list}\n"
-            "다른 말은 절대 하지 말고, 보기 목록에 있는 정확한 텍스트 그대로 딱 하나만 출력해 줘. 만약 정확히 매칭되는 것을 찾기 어렵다면 가장 유사한 것의 이름을 출력해."
-        )
-        response = vision_model.generate_content([prompt, img])
-        detected_text = response.text.strip()
-        
-        # 보기 목록에 정확히 포함되어 있는지 확인
-        for p_str in product_names_list:
-            if p_str in detected_text or detected_text in p_str:
-                return p_str, detected_text
-                
-        # 차선책: 기존 키워드 매칭 방식 백업 실행
         processed_img = ocr_processor.preprocess_image(img_file)
-        if HAS_OCR:
-            results = ocr_reader.readtext(processed_img, detail=0)
-            raw_text = " ".join(results)
-            clean_extracted = re.sub(r'[^a-zA-Z0-9가-힣]', '', raw_text).lower()
-            for p in products:
-                score = sum(1 for kw in p.get("keywords", []) if kw.lower().strip() in clean_extracted)
-                if score >= 1:
-                    return f"[{p['category']}] {p['name']}", raw_text
-                    
-        return None, detected_text
+        results = ocr_reader.readtext(processed_img, detail=0)
+        raw_text = " ".join(results)
+        clean_extracted = re.sub(r'[^a-zA-Z0-9가-힣]', '', raw_text).lower()
+
+        matched_product, max_score = None, 0
+        for p in products:
+            score = sum(1 for kw in p.get("keywords", []) if kw.lower().strip() in clean_extracted)
+            if score > max_score and score >= 1:
+                max_score = score
+                matched_product = f"[{p['category']}] {p['name']}"
+        return matched_product, raw_text
     except Exception as e:
         return None, f"오류: {str(e)}"
 
@@ -173,7 +153,7 @@ st.caption("원하시는 방식을 선택하여 제품을 지정해 주세요.")
 main_tab1, main_tab2, main_tab3 = st.tabs([
     "📸 1. 제품 사진/카메라 등록", 
     "🛒 2. 목록에서 직접 선택", 
-    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (AI Vision + 고급 OCR)"
+    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (고속 OCR)"
 ])
 
 detected_from_cam = None
@@ -184,23 +164,21 @@ with main_tab1:
         up_file = st.file_uploader("사진 파일 선택", type=["jpg", "jpeg", "png"], key="uploader_cam")
         if up_file:
             st.image(up_file, width=220, caption="등록된 제품 사진")
-            with st.spinner("🤖 AI 비전 모델이 제품을 정밀 분석 중입니다..."):
-                matched, _ = match_product_from_image(up_file)
+            matched, _ = match_product_from_image(up_file)
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
             else:
-                st.warning("⚠️ 사진에서 제품을 완벽히 인식하지 못했습니다. 목록에서 직접 선택을 이용해 주세요.")
+                st.warning("⚠️ 인식 실패 시 2번 탭(목록에서 직접 선택)을 이용하시면 발표 시연이 훨씬 매끄럽습니다!")
     with cam_sub2:
         cap_img = st.camera_input("제품 정면 촬영", key="camera_cam")
         if cap_img:
-            with st.spinner("🤖 AI 비전 모델이 제품을 정밀 분석 중입니다..."):
-                matched, _ = match_product_from_image(cap_img)
+            matched, _ = match_product_from_image(cap_img)
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
             else:
-                st.warning("⚠️ 사진에서 제품을 완벽히 인식하지 못했습니다.")
+                st.warning("⚠️ 인식 실패 시 2번 탭을 이용해 주세요.")
 
     cam_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="cam_sym")
     cam_new_name = st.selectbox("🛒 구매 검토 중인 새 제품 선택:", options=list(product_dict.keys()), key="cam_new")
@@ -220,7 +198,7 @@ with main_tab3:
         vision_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="vision_sym")
     with v_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        vision_triggered = st.button("✨ 고급 OCR + AI 멀티모달 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
+        vision_triggered = st.button("✨ 고속 라벨 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
 
 is_cam = cam_triggered
 is_dir = 'dir_triggered' in locals() and dir_triggered
@@ -241,14 +219,14 @@ elif is_dir:
 elif is_vision:
     used_problem_names = vision_problem_names
     used_symptoms = vision_symptoms
-    used_new_name = "고급 OCR & AI 스캔 제품 (신규)"
+    used_new_name = "라벨 스캔 제품 (신규)"
     analysis_mode = "vision"
 else:
     analysis_triggered = False
 
 if analysis_triggered:
     if is_cam and not detected_from_cam:
-        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요!")
+        st.error("먼저 카메라나 사진 업로드를 통해 제품을 인식시켜 주세요! (인식이 안 될 경우 2번 목록에서 직접 선택 탭을 사용하시면 즉시 진행 가능합니다)")
     elif (is_dir or is_vision) and not used_problem_names:
         st.error("과거 부작용을 경험했던 제품을 최소 1개 이상 지정해 주세요!")
     elif is_vision and not vision_file:
@@ -265,20 +243,10 @@ if analysis_triggered:
             matched = new_product_ings.intersection(caution_ings)
             scanned_ingredients_text = "기존 데이터베이스 매칭 완료"
         else:
-            with st.spinner("🔍 고급 OCR 전처리 및 AI 비전 분석을 동시에 수행 중입니다..."):
+            with st.spinner("⚡ 고속 OCR 스캔 중..."):
                 try:
                     ocr_matched_ings, scanned_ingredients_text = ocr_processor.extract_and_match(vision_file, all_official_ingredients)
-                    
-                    api_key = st.secrets.get("GEMINI_API_KEY", None)
-                    genai.configure(api_key=api_key)
-                    vision_model = genai.GenerativeModel('gemini-3.8-flash')
-                    img = Image.open(vision_file)
-                    img.thumbnail((800, 800))
-                    prompt = "화장품 뒷면 전성분 라벨 사진입니다. 포함된 주요 성분 이름들을 쉼표(,)로 구분해서 나열해 줘."
-                    response = vision_model.generate_content([prompt, img])
-                    ai_extracted = [s.strip() for s in response.text.replace('\n', ',').split(',') if s.strip()]
-                    
-                    new_product_ings = set(ocr_matched_ings).union(set(ai_extracted))
+                    new_product_ings = set(ocr_matched_ings)
                     matched = new_product_ings.intersection(caution_ings)
                 except Exception as e:
                     st.error(f"분석 중 오류 발생: {str(e)}")
@@ -319,7 +287,7 @@ if analysis_triggered:
 
         alternative_html = ""
         if matched:
-            with st.spinner("🤖 AI 피부 코디네이터가 감지된 성분에 맞는 실시간 맞춤 대체 처방을 생성 중입니다..."):
+            with st.spinner("🤖 AI 맞춤 처방 생성 중..."):
                 try:
                     api_key = st.secrets.get("GEMINI_API_KEY", None)
                     genai.configure(api_key=api_key)
