@@ -6,7 +6,7 @@ import google.generativeai as genai
 import time
 import cv2
 import numpy as np
-from fuzzywuzzy import process, fuzz
+from difflib import get_close_matches
 
 # EasyOCR 및 고급 전처리 프로세서 로드
 try:
@@ -23,7 +23,7 @@ class EnhancedOCRProcessor:
     """
     [OCR 성능 개선 모듈]
     화장품 용기의 곡면 빛반사, 미세 폰트, 노이즈를 억제하고 
-    퍼지 매칭을 통해 오탈자 및 표기 차이를 자동 보정하는 클래스
+    표준 라이브러리(difflib)를 통해 오탈자 및 표기 차이를 자동 보정하는 클래스
     """
     def __init__(self):
         pass
@@ -48,11 +48,10 @@ class EnhancedOCRProcessor:
             _, thresh = cv2.threshold(contrast_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             return thresh
         except Exception:
-            # 전처리 실패 시 원본 이미지 배열 반환
             image = Image.open(image_file)
             return np.array(image)
 
-    def extract_and_match(self, image_file, official_db_list, threshold=75):
+    def extract_and_match(self, image_file, official_db_list, cutoff=0.6):
         if not HAS_OCR:
             return [], "OCR 라이브러리가 로드되지 않았습니다."
         
@@ -65,14 +64,12 @@ class EnhancedOCRProcessor:
             if len(cleaned) > 1:
                 extracted_ingredients.append(cleaned)
                 
-        # 퍼지 매칭(Fuzzy Matching)을 통한 표준 DB 자동 보정 매핑
+        # 파이썬 내장 difflib을 통한 표준 DB 자동 보정 매핑 (추가 패키지 불필요)
         matched_results = set()
         for item in extracted_ingredients:
-            best_match, score = process.extractOne(
-                item, official_db_list, scorer=fuzz.token_sort_ratio
-            )
-            if score >= threshold:
-                matched_results.add(best_match)
+            matches = get_close_matches(item, official_db_list, n=1, cutoff=cutoff)
+            if matches:
+                matched_results.add(matches[0])
                 
         raw_text_summary = ", ".join(extracted_ingredients[:15]) + (" 외 다수" if len(extracted_ingredients) > 15 else "")
         return list(matched_results), raw_text_summary
@@ -110,7 +107,6 @@ def load_data():
 products, INGREDIENT_INFO = load_data()
 COMMON_INGREDIENTS = {"정제수", "글리세린", "부틸렌글라이콜", "1,2-헥산다이올"}
 
-# 전체 표준 성분 DB 리스트 추출 (퍼지 매칭용)
 all_official_ingredients = list(INGREDIENT_INFO.keys())
 
 def match_product_from_image(img_file):
@@ -253,10 +249,8 @@ if analysis_triggered:
         else:
             with st.spinner("🔍 고급 OCR 전처리 및 AI 비전 분석을 동시에 수행 중입니다..."):
                 try:
-                    # 1. 개선된 로컬 OCR + 퍼지 매칭 수행
                     ocr_matched_ings, scanned_ingredients_text = ocr_processor.extract_and_match(vision_file, all_official_ingredients)
                     
-                    # 2. Gemini 멀티모달 비전 보완 병행
                     api_key = st.secrets.get("GEMINI_API_KEY", None)
                     genai.configure(api_key=api_key)
                     vision_model = genai.GenerativeModel('gemini-3.8-flash')
@@ -266,7 +260,6 @@ if analysis_triggered:
                     response = vision_model.generate_content([prompt, img])
                     ai_extracted = [s.strip() for s in response.text.replace('\n', ',').split(',') if s.strip()]
                     
-                    # 로컬 OCR 결과와 AI 비전 결과 합집합 결합으로 인식 누락 최소화
                     new_product_ings = set(ocr_matched_ings).union(set(ai_extracted))
                     matched = new_product_ings.intersection(caution_ings)
                 except Exception as e:
