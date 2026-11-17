@@ -20,11 +20,6 @@ except Exception:
     HAS_OCR = False
 
 class EnhancedOCRProcessor:
-    """
-    [OCR 성능 개선 모듈]
-    화장품 용기의 곡면 빛반사, 미세 폰트, 노이즈를 억제하고 
-    표준 라이브러리(difflib)를 통해 오탈자 및 표기 차이를 자동 보정하는 클래스
-    """
     def __init__(self):
         pass
         
@@ -37,14 +32,9 @@ class EnhancedOCRProcessor:
             else:
                 gray = img
             
-            # 1. Bilateral Filter (엣지 보존하며 노이즈 및 요철 제거)
             denoised = cv2.bilateralFilter(gray, 11, 17, 17)
-            
-            # 2. CLAHE (곡면 용기의 불균일한 조명 및 빛반사 제거, 텍스트 대비 극대화)
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             contrast_img = clahe.apply(denoised)
-            
-            # 3. Otsu's Thresholding (이진화로 텍스트와 배경 선명 분리)
             _, thresh = cv2.threshold(contrast_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             return thresh
         except Exception:
@@ -64,7 +54,6 @@ class EnhancedOCRProcessor:
             if len(cleaned) > 1:
                 extracted_ingredients.append(cleaned)
                 
-        # 파이썬 내장 difflib을 통한 표준 DB 자동 보정 매핑 (추가 패키지 불필요)
         matched_results = set()
         for item in extracted_ingredients:
             matches = get_close_matches(item, official_db_list, n=1, cutoff=cutoff)
@@ -106,25 +95,48 @@ def load_data():
 
 products, INGREDIENT_INFO = load_data()
 COMMON_INGREDIENTS = {"정제수", "글리세린", "부틸렌글라이콜", "1,2-헥산다이올"}
-
 all_official_ingredients = list(INGREDIENT_INFO.keys())
 
 def match_product_from_image(img_file):
-    if not HAS_OCR:
-        return None, "OCR 라이브러리가 로드되지 않았습니다."
+    """
+    [핵심 개선] 기존의 단순 문자열 키워드 비교 대신, 
+    Gemini 멀티모달 비전 모델을 사용하여 업로드된 제품 이미지의 브랜드명과 제품명을 
+    정확하게 판독하고 products 리스트와 매칭합니다.
+    """
     try:
+        api_key = st.secrets.get("GEMINI_API_KEY", None)
+        genai.configure(api_key=api_key)
+        vision_model = genai.GenerativeModel('gemini-3.8-flash')
+        
+        img = Image.open(img_file)
+        img.thumbnail((800, 800))
+        
+        product_names_list = [f"[{p['category']}] {p['name']}" for p in products]
+        prompt = (
+            "이 화장품 용기/제품 사진을 보고, 다음 보기 목록 중에서 가장 일치하는 제품 하나를 정확히 골라줘.\n"
+            f"보기 목록: {product_names_list}\n"
+            "다른 말은 절대 하지 말고, 보기 목록에 있는 정확한 텍스트 그대로 딱 하나만 출력해 줘. 만약 정확히 매칭되는 것을 찾기 어렵다면 가장 유사한 것의 이름을 출력해."
+        )
+        response = vision_model.generate_content([prompt, img])
+        detected_text = response.text.strip()
+        
+        # 보기 목록에 정확히 포함되어 있는지 확인
+        for p_str in product_names_list:
+            if p_str in detected_text or detected_text in p_str:
+                return p_str, detected_text
+                
+        # 차선책: 기존 키워드 매칭 방식 백업 실행
         processed_img = ocr_processor.preprocess_image(img_file)
-        results = ocr_reader.readtext(processed_img, detail=0)
-        raw_text = " ".join(results)
-        clean_extracted = re.sub(r'[^a-zA-Z0-9가-힣]', '', raw_text).lower()
-
-        matched_product, max_score = None, 0
-        for p in products:
-            score = sum(1 for kw in p.get("keywords", []) if kw.lower().strip() in clean_extracted)
-            if score > max_score and score >= 1:
-                max_score = score
-                matched_product = f"[{p['category']}] {p['name']}"
-        return matched_product, raw_text
+        if HAS_OCR:
+            results = ocr_reader.readtext(processed_img, detail=0)
+            raw_text = " ".join(results)
+            clean_extracted = re.sub(r'[^a-zA-Z0-9가-힣]', '', raw_text).lower()
+            for p in products:
+                score = sum(1 for kw in p.get("keywords", []) if kw.lower().strip() in clean_extracted)
+                if score >= 1:
+                    return f"[{p['category']}] {p['name']}", raw_text
+                    
+        return None, detected_text
     except Exception as e:
         return None, f"오류: {str(e)}"
 
@@ -172,17 +184,23 @@ with main_tab1:
         up_file = st.file_uploader("사진 파일 선택", type=["jpg", "jpeg", "png"], key="uploader_cam")
         if up_file:
             st.image(up_file, width=220, caption="등록된 제품 사진")
-            matched, _ = match_product_from_image(up_file)
+            with st.spinner("🤖 AI 비전 모델이 제품을 정밀 분석 중입니다..."):
+                matched, _ = match_product_from_image(up_file)
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
+            else:
+                st.warning("⚠️ 사진에서 제품을 완벽히 인식하지 못했습니다. 목록에서 직접 선택을 이용해 주세요.")
     with cam_sub2:
         cap_img = st.camera_input("제품 정면 촬영", key="camera_cam")
         if cap_img:
-            matched, _ = match_product_from_image(cap_img)
+            with st.spinner("🤖 AI 비전 모델이 제품을 정밀 분석 중입니다..."):
+                matched, _ = match_product_from_image(cap_img)
             if matched:
                 detected_from_cam = matched
                 st.success(f"🎉 자동 인식된 제품: **{matched}**")
+            else:
+                st.warning("⚠️ 사진에서 제품을 완벽히 인식하지 못했습니다.")
 
     cam_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="cam_sym")
     cam_new_name = st.selectbox("🛒 구매 검토 중인 새 제품 선택:", options=list(product_dict.keys()), key="cam_new")
