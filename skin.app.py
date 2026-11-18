@@ -21,9 +21,9 @@ except Exception:
 
 class EnhancedOCRProcessor:
     """
-    [OCR 성능 개선 모듈]
-    화장품 용기의 곡면 빛반사, 미세 폰트, 노이즈를 억제하고 
-    표준 라이브러리(difflib)를 통해 오탈자 및 표기 차이를 자동 보정하는 클래스
+    [OCR 성능 대폭 개선 모듈]
+    화장품 용기/라벨의 곡면 빛반사, 미세 폰트, 노이즈를 억제하고
+    다중 스케일 인식 및 고도화된 텍스트 정제/유사도 보정을 수행하는 클래스
     """
     def __init__(self):
         pass
@@ -32,46 +32,72 @@ class EnhancedOCRProcessor:
         try:
             image = Image.open(image_file)
             img = np.array(image)
+            
+            # 1. 컬러 변환
             if len(img.shape) == 3:
                 gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             else:
                 gray = img
             
-            # 1. Bilateral Filter (엣지 보존하며 노이즈 및 요철 제거)
+            # 2. 해상도 확보를 위한 업스케일링 (작은 미세 폰트 인식률 향상)
+            height, width = gray.shape[:2]
+            if width < 1000:
+                scale = 1000 / width
+                gray = cv2.resize(gray, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_CUBIC)
+
+            # 3. Bilateral Filter (글자 엣지는 살리면서 빛반사 및 거친 노이즈 제거)
             denoised = cv2.bilateralFilter(gray, 11, 17, 17)
             
-            # 2. CLAHE (곡면 용기의 불균일한 조명 및 빛반사 제거, 텍스트 대비 극대화)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            # 4. CLAHE (조명 불균형 및 곡면 굴곡에 따른 음영 대비 극대화)
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
             contrast_img = clahe.apply(denoised)
             
-            # 3. Otsu's Thresholding (이진화로 텍스트와 배경 선명 분리)
-            _, thresh = cv2.threshold(contrast_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            return thresh
+            # 5. 샤픈(Sharpening) 필터 적용으로 폰트 경계 날카롭게 강조
+            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+            sharpened = cv2.filter2D(contrast_img, -1, kernel)
+            
+            return sharpened
         except Exception:
             image = Image.open(image_file)
             return np.array(image)
 
-    def extract_and_match(self, image_file, official_db_list, cutoff=0.6):
+    def extract_and_match(self, image_file, official_db_list, cutoff=0.55):
         if not HAS_OCR:
             return [], "OCR 라이브러리가 로드되지 않았습니다."
         
         processed_img = self.preprocess_image(image_file)
-        results = ocr_reader.readtext(processed_img, detail=0, paragraph=False)
+        
+        # 다중 스케일(원본, 확대)로 OCR 결과 수집하여 누락 방지
+        raw_results = []
+        results_1 = ocr_reader.readtext(processed_img, detail=1, paragraph=False)
+        raw_results.extend(results_1)
+        
+        h, w = processed_img.shape[:2]
+        resized_double = cv2.resize(processed_img, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
+        results_2 = ocr_reader.readtext(resized_double, detail=1, paragraph=False)
+        raw_results.extend(results_2)
         
         extracted_ingredients = []
-        for text in results:
-            cleaned = text.strip()
-            if len(cleaned) > 1:
-                extracted_ingredients.append(cleaned)
+        for bbox, text, prob in raw_results:
+            # 신뢰도(Confidence)가 너무 낮은 노이즈 텍스트 필터링 (0.15 이상만 수용)
+            if prob < 0.15:
+                continue
+            
+            # 특수문자 및 불필요한 기호 정제 (쉼표, 점, 대괄호 등 분리)
+            cleaned_tokens = re.split(r'[,/\s·]+', text)
+            for token in cleaned_tokens:
+                token_clean = re.sub(r'[^가-힣a-zA-Z0-9]', '', token).strip()
+                if len(token_clean) > 1:  # 1글자짜리 허브 노이즈 제외
+                    extracted_ingredients.append(token_clean)
                 
-        # 파이썬 내장 difflib을 통한 표준 DB 자동 보정 매핑 (추가 패키지 불필요)
+        # 파이썬 내장 difflib을 통한 표준 DB 자동 보정 매핑
         matched_results = set()
         for item in extracted_ingredients:
             matches = get_close_matches(item, official_db_list, n=1, cutoff=cutoff)
             if matches:
                 matched_results.add(matches[0])
                 
-        raw_text_summary = ", ".join(extracted_ingredients[:15]) + (" 외 다수" if len(extracted_ingredients) > 15 else "")
+        raw_text_summary = ", ".join(extracted_ingredients[:20]) + (" 외 다수" if len(extracted_ingredients) > 20 else "")
         return list(matched_results), raw_text_summary
 
 ocr_processor = EnhancedOCRProcessor()
