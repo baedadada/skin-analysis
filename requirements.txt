@@ -1,7 +1,7 @@
 streamlit
 pandas
 pillow
-easyocr
-torch
-torchvision
+numpy
+opencv-python-headless
 google-generativeai
+easyocr
