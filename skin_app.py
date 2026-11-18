@@ -3,104 +3,6 @@ import pandas as pd
 from PIL import Image
 import re
 import google.generativeai as genai
-import time
-import cv2
-import numpy as np
-from difflib import get_close_matches
-
-# EasyOCR 및 고급 전처리 프로세서 로드
-try:
-    import easyocr
-    @st.cache_resource
-    def load_ocr_reader():
-        return easyocr.Reader(['ko', 'en'], gpu=False)
-    ocr_reader = load_ocr_reader()
-    HAS_OCR = True
-except Exception:
-    HAS_OCR = False
-
-class EnhancedOCRProcessor:
-    """
-    [OCR 성능 대폭 개선 모듈]
-    화장품 용기/라벨의 곡면 빛반사, 미세 폰트, 노이즈를 억제하고
-    다중 스케일 인식 및 고도화된 텍스트 정제/유사도 보정을 수행하는 클래스
-    """
-    def __init__(self):
-        pass
-        
-    def preprocess_image(self, image_file):
-        try:
-            image = Image.open(image_file)
-            img = np.array(image)
-            
-            # 1. 컬러 변환
-            if len(img.shape) == 3:
-                gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-            else:
-                gray = img
-            
-            # 2. 해상도 확보를 위한 업스케일링 (작은 미세 폰트 인식률 향상)
-            height, width = gray.shape[:2]
-            if width < 1000:
-                scale = 1000 / width
-                gray = cv2.resize(gray, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_CUBIC)
-
-            # 3. Bilateral Filter (글자 엣지는 살리면서 빛반사 및 거친 노이즈 제거)
-            denoised = cv2.bilateralFilter(gray, 11, 17, 17)
-            
-            # 4. CLAHE (조명 불균형 및 곡면 굴곡에 따른 음영 대비 극대화)
-            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-            contrast_img = clahe.apply(denoised)
-            
-            # 5. 샤픈(Sharpening) 필터 적용으로 폰트 경계 날카롭게 강조
-            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-            sharpened = cv2.filter2D(contrast_img, -1, kernel)
-            
-            return sharpened
-        except Exception:
-            image = Image.open(image_file)
-            return np.array(image)
-
-    def extract_and_match(self, image_file, official_db_list, cutoff=0.55):
-        if not HAS_OCR:
-            return [], "OCR 라이브러리가 로드되지 않았습니다."
-        
-        processed_img = self.preprocess_image(image_file)
-        
-        # 다중 스케일(원본, 확대)로 OCR 결과 수집하여 누락 방지
-        raw_results = []
-        results_1 = ocr_reader.readtext(processed_img, detail=1, paragraph=False)
-        raw_results.extend(results_1)
-        
-        h, w = processed_img.shape[:2]
-        resized_double = cv2.resize(processed_img, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
-        results_2 = ocr_reader.readtext(resized_double, detail=1, paragraph=False)
-        raw_results.extend(results_2)
-        
-        extracted_ingredients = []
-        for bbox, text, prob in raw_results:
-            # 신뢰도(Confidence)가 너무 낮은 노이즈 텍스트 필터링 (0.15 이상만 수용)
-            if prob < 0.15:
-                continue
-            
-            # 특수문자 및 불필요한 기호 정제 (쉼표, 점, 대괄호 등 분리)
-            cleaned_tokens = re.split(r'[,/\s·]+', text)
-            for token in cleaned_tokens:
-                token_clean = re.sub(r'[^가-힣a-zA-Z0-9]', '', token).strip()
-                if len(token_clean) > 1:  # 1글자짜리 허브 노이즈 제외
-                    extracted_ingredients.append(token_clean)
-                
-        # 파이썬 내장 difflib을 통한 표준 DB 자동 보정 매핑
-        matched_results = set()
-        for item in extracted_ingredients:
-            matches = get_close_matches(item, official_db_list, n=1, cutoff=cutoff)
-            if matches:
-                matched_results.add(matches[0])
-                
-        raw_text_summary = ", ".join(extracted_ingredients[:20]) + (" 외 다수" if len(extracted_ingredients) > 20 else "")
-        return list(matched_results), raw_text_summary
-
-ocr_processor = EnhancedOCRProcessor()
 
 # 1. 데이터 로드
 @st.cache_data
@@ -135,13 +37,18 @@ COMMON_INGREDIENTS = {"정제수", "글리세린", "부틸렌글라이콜", "1,2
 
 all_official_ingredients = list(INGREDIENT_INFO.keys())
 
+# 제품 사진 매칭 함수 (Gemini Vision 활용으로 안정성 강화)
 def match_product_from_image(img_file):
-    if not HAS_OCR:
-        return None, "OCR 라이브러리가 로드되지 않았습니다."
     try:
-        processed_img = ocr_processor.preprocess_image(img_file)
-        results = ocr_reader.readtext(processed_img, detail=0)
-        raw_text = " ".join(results)
+        api_key = st.secrets.get("GEMINI_API_KEY", None)
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-3.8-flash')
+        img = Image.open(img_file)
+        img.thumbnail((800, 800))
+        
+        prompt = "이 화장품 제품 사진을 보고 제품 이름이나 특징적인 키워드를 한글이나 영어로 간결하게 알려줘."
+        response = model.generate_content([prompt, img])
+        raw_text = response.text
         clean_extracted = re.sub(r'[^a-zA-Z0-9가-힣]', '', raw_text).lower()
 
         matched_product, max_score = None, 0
@@ -187,7 +94,7 @@ st.caption("원하시는 방식을 선택하여 제품을 지정해 주세요.")
 main_tab1, main_tab2, main_tab3 = st.tabs([
     "📸 1. 제품 사진/카메라 등록", 
     "🛒 2. 목록에서 직접 선택", 
-    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (AI Vision + 고급 OCR)"
+    "🏷️ 3. 화장품 뒷면 전성분 라벨 스캔 (AI Vision 정밀 분석)"
 ])
 
 detected_from_cam = None
@@ -228,7 +135,7 @@ with main_tab3:
         vision_symptoms = st.multiselect("📌 과거 경험한 주요 증상:", options=['따가움/화끈거림', '붉어짐/홍조', '트러블/모공막힘/좁쌀', '가려움', '건조함/각질/당김', '눈시림'], key="vision_sym")
     with v_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        vision_triggered = st.button("✨ 고급 OCR + AI 멀티모달 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
+        vision_triggered = st.button("✨ AI Vision 멀티모달 정밀 분석", type="primary", use_container_width=True, key="btn_vision")
 
 is_cam = cam_triggered
 is_dir = 'dir_triggered' in locals() and dir_triggered
@@ -249,7 +156,7 @@ elif is_dir:
 elif is_vision:
     used_problem_names = vision_problem_names
     used_symptoms = vision_symptoms
-    used_new_name = "고급 OCR & AI 스캔 제품 (신규)"
+    used_new_name = "AI 비전 스캔 제품 (신규)"
     analysis_mode = "vision"
 else:
     analysis_triggered = False
@@ -273,20 +180,26 @@ if analysis_triggered:
             matched = new_product_ings.intersection(caution_ings)
             scanned_ingredients_text = "기존 데이터베이스 매칭 완료"
         else:
-            with st.spinner("🔍 고급 OCR 전처리 및 AI 비전 분석을 동시에 수행 중입니다..."):
+            with st.spinner("🔍 AI 비전 모델이 전성분 라벨을 정밀 분석 중입니다..."):
                 try:
-                    ocr_matched_ings, scanned_ingredients_text = ocr_processor.extract_and_match(vision_file, all_official_ingredients)
-                    
                     api_key = st.secrets.get("GEMINI_API_KEY", None)
                     genai.configure(api_key=api_key)
                     vision_model = genai.GenerativeModel('gemini-3.8-flash')
                     img = Image.open(vision_file)
                     img.thumbnail((800, 800))
-                    prompt = "화장품 뒷면 전성분 라벨 사진입니다. 포함된 주요 성분 이름들을 쉼표(,)로 구분해서 나열해 줘."
+                    prompt = "화장품 뒷면 전성분 라벨 사진입니다. 포함된 성분 이름들을 정확하게 쉼표(,)로 구분해서 나열해 줘."
                     response = vision_model.generate_content([prompt, img])
                     ai_extracted = [s.strip() for s in response.text.replace('\n', ',').split(',') if s.strip()]
                     
-                    new_product_ings = set(ocr_matched_ings).union(set(ai_extracted))
+                    # 공식 성분 DB와 매칭하여 보정
+                    matched_ai_ings = set()
+                    for item in ai_extracted:
+                        for official in all_official_ingredients:
+                            if official in item or item in official:
+                                matched_ai_ings.add(official)
+                    
+                    scanned_ingredients_text = ", ".join(list(matched_ai_ings)[:15]) + (" 외 다수" if len(matched_ai_ings) > 15 else "")
+                    new_product_ings = matched_ai_ings
                     matched = new_product_ings.intersection(caution_ings)
                 except Exception as e:
                     st.error(f"분석 중 오류 발생: {str(e)}")
@@ -344,7 +257,7 @@ if analysis_triggered:
                     ai_rx_text = "자극 성분을 피하고 피부 장벽 보호 및 진정에 특화된 순한 마일드 보습 성분군으로 대체할 것을 처방합니다."
 
             alternative_html = (
-                f'<div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 18px 20px; margin-top: 20px; font-size: 14px; color: #1E3A8A; line-height: 1.6;">'
+                f'<div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-neradius: 12px; padding: 18px 20px; margin-top: 20px; font-size: 14px; color: #1E3A8A; line-height: 1.6;">'
                 f'<b style="color: #1D4ED8; font-size: 15px;">💡 AI 실시간 맞춤형 대체 처방 솔루션</b><br><br>'
                 f'{ai_rx_text}'
                 f'</div>'
